@@ -7,7 +7,7 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
 
 本项目由两部分组成：
 
-1.  **前端Chrome扩展** (`fe` 目录): 一个Chrome浏览器扩展，负责提取网页内容、提供沉浸式阅读模式，并与后端服务交互以展示生成的问题。
+1.  **前端Chrome扩展** (`src` 目录): 一个Chrome浏览器扩展，负责提取网页内容、提供沉浸式阅读模式，并与后端服务交互以展示生成的问题。
 2.  **后端知识处理服务** (`be` 目录): 一个Python服务，负责处理Markdown文件，将其分割成块，使用LLM（大语言模型）为每个块生成问题，并将结果存储在数据库中。
 
 ## 主要功能
@@ -30,14 +30,18 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
 ## 技术栈
 
 - **前端**:
-    - JavaScript (ES6+)
+    - JavaScript (ES6+) 模块化开发
     - Chrome Extension API (Manifest V3)
-    - Vite
+    - Vite 构建工具
+    - 智能内容提取算法
+    - 沉浸式阅读界面
 - **后端**:
-    - Python
-    - SQLAlchemy (MySQL)
-    - Redis
-    - SiliconFlow (for LLM access)
+    - Python 3.x
+    - SQLAlchemy (MySQL数据库ORM)
+    - Redis (状态管理和缓存)
+    - FastAPI (Web框架)
+    - 多LLM提供商支持 (OpenAI, Ollama, 智谱AI, SiliconFlow)
+    - 文件存储管理 (本地存储/OSS)
 
 ## 安装与使用
 
@@ -60,20 +64,171 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
 
 ```
 insight-flow/
-├── be/                   # 后端服务
+├── be/                           # 后端服务
+│   ├── api_services/             # API服务层
+│   │   └── file_management_service.py
+│   ├── common/                   # 通用模块
+│   │   ├── database_manager.py   # 数据库管理
+│   │   ├── redis_manager.py      # Redis管理
+│   │   ├── storage_manager.py    # 存储管理
+│   │   └── logger_config.py      # 日志配置
 │   ├── llm_knowledge_processing/ # 核心知识处理逻辑
-│   └── ...
-├── fe/                   # 前端源码 (Vite项目)
-│   ├── background/       # Service Worker
-│   ├── content/          # 内容脚本
-│   └── popup/            # 弹出页面
-├── src/                  # 旧的前端源码 (可能需要清理)
-├── dist/                 # 构建输出目录
-├── package.json          # 前端依赖和脚本
-├── vite.config.js        # Vite构建配置
-└── README.md             # 本文档
+│   │   ├── knowledge_processing_service.py # 主服务
+│   │   ├── llm_client.py         # LLM客户端
+│   │   ├── llm_config_manager.py # LLM配置管理
+│   │   ├── markdown_splitter.py  # Markdown分割器
+│   │   ├── tag_management.py     # 标签管理
+│   │   ├── utils.py              # 工具函数
+│   │   └── data/                 # 数据和配置
+│   ├── tests/                    # 测试文件
+│   └── requirements.txt          # Python依赖
+├── src/                          # 前端Chrome扩展源码
+│   ├── background/               # Service Worker
+│   │   └── index.js
+│   ├── content/                  # 内容脚本
+│   │   ├── extractors/           # 内容提取器
+│   │   ├── immersive/            # 沉浸式阅读
+│   │   ├── sidebar/              # 侧边栏组件
+│   │   └── index.js
+│   ├── popup/                    # 弹出页面
+│   │   ├── popup.html
+│   │   ├── popup.css
+│   │   └── popup.js
+│   ├── assets/                   # 静态资源
+│   │   ├── css/
+│   │   └── images/
+│   ├── services/                 # 服务层
+│   │   └── apiService.js
+│   ├── utils/                    # 工具函数
+│   │   └── stringUtils.js
+│   └── manifest.json             # 扩展配置文件
+├── dist/                         # 构建输出目录
+├── upload_file/                  # 文件上传目录
+├── package.json                  # 前端依赖和脚本
+├── vite.config.js               # Vite构建配置
+└── README.md                    # 本文档
 ```
+
+## 核心特性
+
+### 智能内容提取
+- 支持多种网页结构的内容识别
+- 自动过滤广告、导航等无关内容
+- 保持原文格式和结构完整性
+
+### 沉浸式阅读体验
+- 全屏无干扰阅读模式
+- 优化的字体和排版
+- 可自定义的阅读环境
+
+### 多LLM提供商支持
+- OpenAI GPT系列
+- Ollama 本地模型
+- 智谱AI (GLM系列)
+- SiliconFlow 云服务
+- 可扩展的LLM配置管理
+
+### 高效的知识处理
+- 智能Markdown文档分块
+- 基于内容的问题生成
+- Redis缓存加速处理
+- MySQL持久化存储
+
+## 配置说明
+
+### 环境变量配置
+```bash
+# Redis配置
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# MySQL配置
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=insight_flow
+DB_USER=your_username
+DB_PASSWORD=your_password
+
+# LLM配置 (在代码中配置)
+LLM_PROVIDER=siliconflow  # openai, ollama, zhipu, siliconflow
+LLM_API_KEY=your_api_key
+LLM_BASE_URL=https://api.siliconflow.cn/v1
+LLM_MODEL=Qwen/Qwen3-30B-A3B
+```
+
+### Chrome扩展权限
+- `activeTab`: 访问当前活动标签页
+- `scripting`: 执行内容脚本
+- `storage`: 本地数据存储
+- `notifications`: 显示通知
+- `tabs`: 标签页管理
+
+## 开发指南
+
+### 前端开发
+```bash
+# 安装依赖
+npm install
+
+# 开发模式构建
+npm run build
+
+# 复制静态文件
+npm run copy-static
+```
+
+### 后端开发
+```bash
+# 创建虚拟环境
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 安装依赖
+pip install -r be/requirements.txt
+
+# 运行测试
+pytest be/tests/
+
+# 启动知识处理服务
+python be/llm_knowledge_processing/knowledge_processing_service.py
+```
+
+### 调试技巧
+- 使用Chrome开发者工具调试扩展
+- 查看 `be/logs/app.log` 获取后端日志
+- 使用Redis CLI监控缓存状态
+- 通过MySQL客户端检查数据存储
+
+## API接口
+
+### 文件管理API
+- `POST /upload` - 上传Markdown文件
+- `GET /files/{file_id}` - 获取文件信息
+- `DELETE /files/{file_id}` - 删除文件
+- `GET /status/{file_id}` - 获取处理状态
+
+### 问题生成API
+- `GET /questions/{project_id}` - 获取生成的问题
+- `POST /questions/generate` - 手动触发问题生成
 
 ## 注意事项
 
-- 后端服务中的LLM API密钥需要替换为您自己的有效密钥。
+- 后端服务中的LLM API密钥需要替换为您自己的有效密钥
+- 确保MySQL和Redis服务正常运行
+- Chrome扩展需要在开发者模式下加载
+- 建议使用Python 3.8+版本
+- 首次运行前需要初始化数据库表结构
+
+## 贡献指南
+
+欢迎提交Issue和Pull Request来改进项目！
+
+### 提交规范
+- 使用清晰的提交信息
+- 遵循现有的代码风格
+- 添加必要的测试用例
+- 更新相关文档
+
+## 许可证
+
+本项目采用 ISC 许可证，详见 [LICENSE](LICENSE) 文件。
