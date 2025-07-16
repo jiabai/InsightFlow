@@ -1,0 +1,71 @@
+"""
+Redis manager module for handling file status tracking.
+
+This module provides a RedisManager class that interfaces with Redis for storing,
+retrieving and managing file processing statuses. It uses Redis as a key-value store
+where file IDs serve as keys for tracking their processing states.
+"""
+import os
+import aioredis
+from be.common.exceptions import RedisError
+
+class RedisManager:
+    """A class to manage Redis operations for file status tracking.
+
+    This class provides an interface to interact with Redis for storing, retrieving,
+    and managing file processing statuses. It handles basic Redis operations like
+    setting, getting, and deleting file statuses using file IDs as keys.
+    """
+    def __init__(self):
+        self.redis_host = os.getenv("REDIS_HOST", "192.168.31.233")
+        self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        self.redis_client = None
+
+    async def init_redis(self):
+        """Asynchronously initializes the Redis connection by pinging the server."""
+        try:
+            self.redis_client = await aioredis.create_redis_pool(
+                f"redis://{self.redis_host}:{self.redis_port}",
+                minsize=1, maxsize=10,
+                encoding='utf-8'
+            )
+            await self.redis_client.ping() # Ping after connection to verify
+        except aioredis.ConnectionClosedError as e:
+            raise RedisError(f"Failed to connect to Redis: {e}") from e
+
+    async def set_file_status(self, file_id: str, status: str):
+        """Set the status of a file in Redis.
+
+        Args:
+            file_id (str): The unique identifier of the file whose status should be set.
+            status (str): The status to set for the file.
+        """
+        try:
+            await self.redis_client.set(file_id, status)
+        except aioredis.RedisError as e:
+            raise RedisError(f"Failed to set file status for {file_id}: {e}") from e
+
+    async def get_file_status(self, file_id: str) -> str:
+        """Get the status of a file from Redis.
+
+        Args:
+            file_id (str): The unique identifier of the file whose status should be retrieved.
+
+        Returns:
+            str: The status of the file if found, None if the file_id doesn't exist.
+        """
+        try:
+            return await self.redis_client.get(file_id)
+        except aioredis.RedisError as e:
+            raise RedisError(f"Failed to get file status for {file_id}: {e}") from e
+
+    async def delete_file_status(self, file_id: str):
+        """Delete the status of a file from Redis.
+
+        Args:
+            file_id (str): The unique identifier of the file whose status should be deleted.
+        """
+        try:
+            await self.redis_client.delete(file_id)
+        except aioredis.RedisError as e:
+            raise RedisError(f"Failed to delete file status for {file_id}: {e}") from e
