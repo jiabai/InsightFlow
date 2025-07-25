@@ -16,6 +16,9 @@ def setup_logging(log_file='app.log', level=logging.INFO, max_bytes=10*1024*1024
     logger = logging.getLogger()
     logger.setLevel(level)
 
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+
     # 避免重复添加处理器
     if not logger.handlers:
         # 创建文件处理器，用于写入日志文件

@@ -2,7 +2,7 @@ import requests
 
 user_id = "userid_123"
 url = f"http://127.0.0.1:8000/upload/{user_id}"
-file_path = r"C:\\Users\\bicho\\Documents\\绘图4.eddx"  # 要上传的文件路径
+file_path = r"D:\VSCode\notes\markdown.md"  # 要上传的文件路径
 
 with open(file_path, "rb") as f:
     import os

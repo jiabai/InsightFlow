@@ -17,7 +17,7 @@ def manager_factory(mock_redis_client):
     async def _factory():
         with patch('aioredis.create_redis_pool', return_value=mock_redis_client):
             instance = RedisManager()
-            await instance.init_redis()
+            await instance.initialize()
             return instance
     return _factory
 
@@ -36,7 +36,7 @@ async def test_init_redis_failure():
     with patch('aioredis.create_redis_pool', return_value=mock_redis_client):
         manager = RedisManager()
         with pytest.raises(RedisError, match="Failed to connect to Redis"):
-            await manager.init_redis()
+            await manager.initialize()
 
 @pytest.mark.asyncio
 async def test_set_file_status_success(manager_factory, mock_redis_client):
