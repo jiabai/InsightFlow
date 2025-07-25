@@ -183,56 +183,48 @@ async def upload_file(
             - 500 if any storage, database or Redis operations fail
             - 500 for unexpected errors during upload
     """
-    file_name = file.filename
-    file_id = hashlib.sha256(file_name.encode()).hexdigest()
-
-    result = await db_mgr.execute(
-        select(FileMetadata).where(FileMetadata.file_id == file_id)
-    )
-    existing_file = result.scalars().first()
-    if existing_file:
-        logger.info(
-            "File with file_id %s already exists. Returning existing file info.",
-            file_id
-        )
-        return {
-            "file_id": existing_file.file_id,
-            "filename": existing_file.filename,
-            "size": existing_file.file_size,
-            "type": existing_file.file_type,
-            "upload_time": existing_file.upload_time.isoformat(),
-            "stored_filename": existing_file.stored_filename,
-            "status": "File Already exists"
-        }
-
+    unique_string = f"{file.filename}-{user_id}"
+    file_id = hashlib.sha256(unique_string.encode()).hexdigest()
     # 生成唯一的文件名，包含用户ID、文件ID和原始文件名
-    stored_filename = f"{user_id}_{file_id}_{file_name}"
+    stored_filename = f"{user_id}_{file_id}_{file.filename}"
 
+    # result = await db_mgr.execute(
+    #     select(FileMetadata).where(FileMetadata.file_id == file_id)
+    # )
+    # existing_file = result.scalars().first()
     try:
-        try:
-            await redis_mgr.set_file_status(file_id, "Pending")
-        except Exception as e:
-            raise RedisError(f"Failed to set file status in Redis: {e}") from e
+        existing_file: FileMetadata = await db_manager.get_file_metadata_by_file_id(db_mgr, file_id)
+        if existing_file:
+            logger.warning(
+                "File with file_id %s already exists. Returning existing file info.",
+                file_id
+            )
+            return {
+                "file_id": existing_file.file_id,
+                "filename": existing_file.filename,
+                "size": existing_file.file_size,
+                "type": existing_file.file_type,
+                "upload_time": existing_file.upload_time.isoformat(),
+                "stored_filename": existing_file.stored_filename,
+                "status": "File Already exists"
+            }
+
+        await redis_mgr.set_file_status(file_id, "Pending")
 
         file_content = await file.read()
-        try:
-            await storage_mgr.upload_file(file_content, stored_filename, user_id)
-        except Exception as e:
-            raise StorageError(f"Failed to upload file to storage: {e}") from e
+        await storage_mgr.upload_file(file_content, stored_filename, user_id)
 
-        try:
-            await db_manager.save_file_metadata(
-                db=db_mgr,
-                file_id=file_id,
-                user_id=user_id,
-                filename=file.filename,
-                file_size=file.size,
-                file_type=file.content_type,
-                stored_filename=stored_filename
-            )
-        except Exception as e:
-            await db_mgr.rollback()
-            raise DatabaseError(f"Failed to save file metadata to database: {e}") from e
+        file_metadata: FileMetadata = await db_manager.save_file_metadata(
+            db=db_mgr,
+            file_id=file_id,
+            user_id=user_id,
+            filename=file.filename,
+            file_size=file.size,
+            file_type=file.content_type,
+            stored_filename=stored_filename
+        )
+        if not file_metadata:
+            raise DatabaseError("Failed to save file metadata")
 
         return {
             "file_id": file_id,
@@ -251,28 +243,17 @@ async def upload_file(
             exc_info=True
         )
         await redis_mgr.delete_file_status(file_id)
+        await storage_mgr.delete_file(stored_filename, user_id)
+        await db_manager.delete_file_metadata(db_mgr, file_id)
         raise HTTPException(
             status_code=500,
             detail=f"File upload failed: {e}"
         ) from e
-    except Exception as e:
-        logger.error(
-            "An unexpected error occurred during file upload for file_id %s: %s",
-            file_id,
-            str(e),
-            exc_info=True
-        )
-        await redis_mgr.delete_file_status(file_id)
-        raise HTTPException(
-            status_code=500,
-            detail=f"An unexpected error occurred: {e}"
-        ) from e
     finally:
-        # 确保在任何情况下都关闭文件，尽管FastAPI通常会自动处理
         await file.close()
 
 @router.get("/files/", response_model=List[FileMetadataResponse])
-async def get_files(
+async def get_all_files(
     db_mgr: AsyncSession = Depends(get_db)
 ) -> List[FileMetadataResponse]:
     """
@@ -287,8 +268,27 @@ async def get_files(
     Returns:
         List[FileMetadataResponse]: List of file metadata objects containing file details
     """
-    result = await db_mgr.execute(select(FileMetadata))
-    return result.scalars().all()
+    try:
+        file_metadata_list: List[FileMetadata] = await db_manager.get_all_file_metadata(db_mgr)
+        if not file_metadata_list:
+            raise DatabaseError("No files found in the database")
+        logger.debug("Found %d files in the database", len(file_metadata_list))
+
+        file_metadata_response: List[FileMetadataResponse] = [
+            FileMetadataResponse(
+                file_id=file_metadata.file_id,
+                filename=file_metadata.filename,
+                size=file_metadata.file_size,
+                type=file_metadata.file_type,
+                upload_time=file_metadata.upload_time.isoformat(),
+                stored_filename=file_metadata.stored_filename,
+            )
+            for file_metadata in file_metadata_list
+        ]
+        return file_metadata_response
+    except DatabaseError as e:
+        logger.error("Failed to get all files: %s", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/files/{user_id}", response_model=List[FileMetadataResponse])
 async def get_files_by_user(
@@ -315,18 +315,32 @@ async def get_files_by_user(
     Raises:
         HTTPException: 404 if no files are found for the given user_id
     """
-    result = await db_manager.get_file_metadata_by_user_id(
-        db=db_mgr,
-        user_id=user_id,
-        skip=skip,
-        limit=limit
-    )
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User {user_id} has no files"
+    try:
+        result: List[FileMetadata] = await db_manager.get_file_metadata_by_user_id(
+            db=db_mgr,
+            user_id=user_id,
+            skip=skip,
+            limit=limit
         )
-    return result
+        if not result:
+            raise DatabaseError(f"User {user_id} has no files")
+        logger.debug("Found %d files for user %s", len(result), user_id)
+
+        file_metadata_response: List[FileMetadataResponse] = [
+            FileMetadataResponse(
+                file_id=file_metadata.file_id,
+                filename=file_metadata.filename,
+                size=file_metadata.file_size,
+                type=file_metadata.file_type,
+                upload_time=file_metadata.upload_time.isoformat(),
+                stored_filename=file_metadata.stored_filename,
+            )
+            for file_metadata in result
+        ]
+        return file_metadata_response
+    except DatabaseError as e:
+        logger.error("Failed to get files for user %s: %s", user_id, str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/files/{user_id}/{file_id}", response_model=FileMetadataResponse)
 async def get_file_by_user_and_fileid(
@@ -351,18 +365,28 @@ async def get_file_by_user_and_fileid(
     Raises:
         HTTPException: 404 if no file is found for the given user_id and file_id
     """
-    result = await db_manager.get_file_metadata_by_userid_and_fileid(
-        db=db_mgr,
-        user_id=user_id,
-        file_id=file_id
-    )
-
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail=f"File '{file_id}' not found for user {user_id}"
+    try:
+        result: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+            db=db_mgr,
+            user_id=user_id,
+            file_id=file_id
         )
-    return result
+        if not result:
+            raise DatabaseError(f"File '{file_id}' not found for user {user_id}")
+        logger.debug("Found file metadata for file_id %s", file_id)
+
+        file_metadata_response: FileMetadataResponse = FileMetadataResponse(
+            file_id=result.file_id,
+            filename=result.filename,
+            size=result.file_size,
+            type=result.file_type,
+            upload_time=result.upload_time.isoformat(),
+            stored_filename=result.stored_filename,
+        )
+        return file_metadata_response
+    except DatabaseError as e:
+        logger.error("Failed to get file metadata for file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.delete("/delete/{user_id}/{file_id}")
 async def delete_file(
@@ -401,49 +425,40 @@ async def delete_file(
         RedisError: If Redis operations fail
     """
     try:
-        result = await db_mgr.execute(
-            select(FileMetadata).filter(
-                FileMetadata.file_id == file_id,
-                FileMetadata.user_id == user_id
-            )
+        file_metadata: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+            db=db_mgr,
+            user_id=user_id,
+            file_id=file_id
         )
-        file_metadata = result.scalars().first()
         if not file_metadata:
-            logger.debug(
+            logger.error(
                 "File with file_id %s not found for deletion.",
                 file_id
             )
-            raise FileNotFoundError(
+            raise DatabaseError(
                 f"File with ID {file_id} not found for user {user_id}"
             )
-
         logger.debug("Found file metadata for file_id %s", file_id)
 
         await storage_mgr.delete_file(file_metadata.stored_filename, user_id)
-        logger.debug("Deleted file %s from storage.", file_metadata.stored_filename)
+        logger.debug(
+            "Deleted file %s from storage for file_id %s.",
+            file_metadata.stored_filename,
+            file_id
+        )
 
-        try:
-            await db_manager.delete_file_metadata(
-                db=db_mgr,
-                file_id=file_id
-            )
-        except DatabaseError as db_err:
-            await db_mgr.rollback()
-            raise DatabaseError(
-                f"Failed to delete file metadata in database: {db_err}"
-            ) from db_err
+        chunks: List[Chunk] = await db_manager.get_chunks_by_file_id(db_mgr, file_id)
+        for chunk in chunks:
+            await db_manager.delete_questions_by_chunk_id(db_mgr, chunk.id)
+        await db_manager.delete_chunks_by_file_id(db_mgr, file_id)
+        await db_manager.delete_file_metadata(
+            db=db_mgr,
+            file_id=file_id
+        )
+        logger.debug("Deleted file metadata for file_id %s from MySQL.", file_id)
 
-        logger.debug("Deleted file metadata for file_id %s.", file_id)
-
-        try:
-            await redis_mgr.delete_file_status(file_id)
-            logger.info("Deleted file status for file_id %s from Redis.", file_id)
-        except RedisError as redis_err:
-            logger.error(
-                "Failed to delete file status for file_id %s from Redis: %s",
-                file_id,
-                str(redis_err)
-            )
+        await redis_mgr.delete_file_status(file_id)
+        logger.debug("Deleted file status for file_id %s from Redis.", file_id)
 
         return {"message": f"File {file_metadata.filename} deleted successfully"}
     except Exception as e:
@@ -478,10 +493,14 @@ async def redis_file_status(
     Raises:
         HTTPException: 404 if no status is found for the given file_id
     """
-    status = await redis_mgr.get_file_status(file_id)
-    if status is None:
-        raise HTTPException(status_code=404, detail="File status not found in Redis")
-    return {"file_id": file_id, "status": status}
+    try:
+        status = await redis_mgr.get_file_status(file_id)
+        if status is None:
+            raise RedisError(f"File status not found for file_id {file_id}")
+        return {"file_id": file_id, "status": status}
+    except RedisError as e:
+        logger.error("Failed to get file status from Redis: %s", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/download/{user_id}/{file_id}")
 async def download_file(
@@ -509,28 +528,35 @@ async def download_file(
     Raises:
         HTTPException: 404 if the file is not found for the given user_id and file_id
     """
-    file_metadata = await db_manager.get_file_metadata_by_userid_and_fileid(
-        db=db_mgr,
-        user_id=user_id,
-        file_id=file_id
-    )
-    if not file_metadata:
-        raise HTTPException(status_code=404, detail="File not found")
+    try:
+        file_metadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+            db=db_mgr,
+            user_id=user_id,
+            file_id=file_id
+        )
+        if not file_metadata:
+            raise DatabaseError(f"File metadata not found for file_id {file_id}")
+        logger.debug("Found file metadata for file_id %s", file_id)
 
-    object_stream = await storage_manager.download_file(
-        file_metadata.stored_filename,
-        user_id
-    )
-    object_stream.seek(0)
-    encoded_filename = quote(file_metadata.filename)
+        object_stream = await storage_manager.download_file(
+            file_metadata.stored_filename,
+            user_id
+        )
+        object_stream.seek(0)
+        encoded_filename = quote(file_metadata.filename)
+        logger.debug("Downloading file %s from storage.", file_metadata.stored_filename)
+        logger.debug("File content length: %d bytes", object_stream.getbuffer().nbytes)
 
-    return StreamingResponse(
-        content=object_stream,
-        media_type=file_metadata.file_type,
-        headers={
-            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
-        }
-    )
+        return StreamingResponse(
+            content=object_stream,
+            media_type=file_metadata.file_type,
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
+            }
+        )
+    except Exception as e:
+        logger.error("Failed to download file with file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/questions/{file_id}")
 async def get_questions_by_file(
@@ -561,28 +587,35 @@ async def get_questions_by_file(
             - 400 if file processing is not completed
             - 404 if no chunks found for the file
     """
-    # 首先检查文件状态
-    await redis_manager.initialize()
-    status = await redis_manager.get_file_status(file_id)
-    if status != "Completed":
-        raise HTTPException(
-            status_code=400,
-            detail=f"File processing not completed, current status: {status}"
-        )
-    logger.debug("File processing completed, status: %s", status)
-    # 获取文件关联的所有chunks
-    chunks: List[Chunk] = await db_manager.get_chunk_by_file_id(db_mgr, file_id)
-    if not chunks:
-        raise HTTPException(status_code=404, detail="No chunks found for this file")
-    logger.debug("Found %d chunks for file_id %s", len(chunks), file_id)
-    # 收集所有问题
-    all_questions = []
-    for chunk in chunks:
-        questions = await db_manager.get_questions_by_chunk_id(db_mgr, chunk.id)
-        all_questions.extend([{
-            "question": q.question,
-            "label": q.label,
-            "chunk_id": chunk.id
-        } for q in questions])
-    logger.debug("Found %d questions for file_id %s", len(all_questions), file_id)
-    return {"file_id": file_id, "questions": all_questions}
+    try:
+        # 首先检查文件状态
+        await redis_manager.initialize()
+        status = await redis_manager.get_file_status(file_id)
+        if status != "Completed":
+            raise RedisError(f"File processing not completed, current status: {status}")
+        logger.debug("File processing completed, status: %s", status)
+
+        # 获取文件关联的所有chunks
+        chunks: List[Chunk] = await db_manager.get_chunks_by_file_id(db_mgr, file_id)
+        if not chunks:
+            raise DatabaseError(f"No chunks found for file_id {file_id}")
+        logger.debug("Found %d chunks for file_id %s", len(chunks), file_id)
+        # 收集所有问题
+        all_questions = []
+        for chunk in chunks:
+            questions = await db_manager.get_questions_by_chunk_id(db_mgr, chunk.id)
+            if not questions:
+                raise DatabaseError(f"No questions found for chunk_id {chunk.id}")
+            all_questions.extend([{
+                "question": q.question,
+                "label": q.label,
+                "chunk_id": chunk.id
+            } for q in questions])
+        logger.debug("Found %d questions for file_id %s", len(all_questions), file_id)
+        return {"file_id": file_id, "questions": all_questions}
+    except DatabaseError as e:
+        logger.error("Failed to get questions for file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+    except RedisError as e:
+        logger.error("Failed to get file status from Redis: %s", str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e

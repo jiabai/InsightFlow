@@ -24,12 +24,15 @@ class RedisManager:
     async def initialize(self):
         """Asynchronously initializes the Redis connection by pinging the server."""
         try:
-            self.redis_client = await aioredis.create_redis_pool(
-                f"redis://{self.redis_host}:{self.redis_port}",
-                minsize=1, maxsize=10,
-                encoding='utf-8'
-            )
-            await self.redis_client.ping() # Ping after connection to verify
+            if self.redis_client is None or self.redis_client.closed:
+                self.redis_client = await aioredis.create_redis_pool(
+                    f"redis://{self.redis_host}:{self.redis_port}",
+                    minsize=1, maxsize=10,
+                    encoding='utf-8'
+                )
+            response = await self.redis_client.ping()
+            if response != b'PONG':
+                raise RedisError("Failed to ping Redis server.")
         except aioredis.ConnectionClosedError as e:
             raise RedisError(f"Failed to connect to Redis: {e}") from e
 
