@@ -66,6 +66,7 @@ class DatabaseManager:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         await self.engine.dispose()
+
     def __init__(self):
         # 数据库配置
         self.database_name = os.getenv("DB_NAME", "insight_flow")
@@ -143,7 +144,7 @@ class DatabaseManager:
         self,
         db: AsyncSession,
         file_id: str
-    ):
+    ) -> FileMetadata:
         try:
             result = await db.execute(
                 select(FileMetadata)
@@ -189,6 +190,16 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get files by user ID {user_id}: {e}") from e
 
+    async def get_all_file_metadata(
+        self,
+        db: AsyncSession
+    ) -> List[FileMetadata]:
+        try:
+            result = await db.execute(select(FileMetadata))
+            return result.scalars().all()
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Failed to get all file metadata: {e}") from e
+
     async def get_file_metadata_by_userid_and_fileid(
         self,
         db: AsyncSession,
@@ -207,7 +218,7 @@ class DatabaseManager:
             error_msg += f"and file ID {file_id}: {e}"
             raise DatabaseError(error_msg) from e
 
-    async def get_chunk_by_file_id(self, db: AsyncSession, file_id: str) -> List[Chunk]:
+    async def get_chunks_by_file_id(self, db: AsyncSession, file_id: str) -> List[Chunk]:
         try:
             result = await db.execute(select(Chunk).filter(Chunk.file_id == file_id))
             return result.scalars().all()

@@ -7,7 +7,7 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
 
 本项目由两部分组成：
 
-1.  **前端Chrome扩展** (`fe` 目录): 一个Chrome浏览器扩展，负责提取网页内容、提供沉浸式阅读模式，并与后端服务交互以展示生成的问题。
+1.  **前端Chrome扩展** (`src` 目录): 一个Chrome浏览器扩展，负责提取网页内容、提供沉浸式阅读模式，并与后端服务交互以展示生成的问题。
 2.  **后端知识处理服务** (`be` 目录): 一个Python服务，负责处理Markdown文件，将其分割成块，使用LLM（大语言模型）为每个块生成问题，并将结果存储在数据库中。
 
 ## 主要功能
@@ -60,55 +60,6 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
     - 启用“开发者模式”
     - 点击“加载已解压的扩展程序”，选择 `dist` 目录。
 
-## 项目结构
-
-```
-insight-flow/
-├── be/                           # 后端服务
-│   ├── api_services/             # API服务层
-│   │   └── file_management_service.py
-│   ├── common/                   # 通用模块
-│   │   ├── database_manager.py   # 数据库管理
-│   │   ├── redis_manager.py      # Redis管理
-│   │   ├── storage_manager.py    # 存储管理
-│   │   └── logger_config.py      # 日志配置
-│   ├── llm_knowledge_processing/ # 核心知识处理逻辑
-│   │   ├── knowledge_processing_service.py # 主服务
-│   │   ├── llm_client.py         # LLM客户端
-│   │   ├── llm_config_manager.py # LLM配置管理
-│   │   ├── markdown_splitter.py  # Markdown分割器
-│   │   ├── tag_management.py     # 标签管理
-│   │   ├── utils.py              # 工具函数
-│   │   └── data/                 # 数据和配置
-│   ├── tests/                    # 测试文件
-│   └── requirements.txt          # Python依赖
-├── src/                          # 前端Chrome扩展源码
-│   ├── background/               # Service Worker
-│   │   └── index.js
-│   ├── content/                  # 内容脚本
-│   │   ├── extractors/           # 内容提取器
-│   │   ├── immersive/            # 沉浸式阅读
-│   │   ├── sidebar/              # 侧边栏组件
-│   │   └── index.js
-│   ├── popup/                    # 弹出页面
-│   │   ├── popup.html
-│   │   ├── popup.css
-│   │   └── popup.js
-│   ├── assets/                   # 静态资源
-│   │   ├── css/
-│   │   └── images/
-│   ├── services/                 # 服务层
-│   │   └── apiService.js
-│   ├── utils/                    # 工具函数
-│   │   └── stringUtils.js
-│   └── manifest.json             # 扩展配置文件
-├── dist/                         # 构建输出目录
-├── upload_file/                  # 文件上传目录
-├── package.json                  # 前端依赖和脚本
-├── vite.config.js               # Vite构建配置
-└── README.md                    # 本文档
-```
-
 ## 核心特性
 
 ### 智能内容提取
@@ -133,6 +84,16 @@ insight-flow/
 - 基于内容的问题生成
 - Redis缓存加速处理
 - MySQL持久化存储
+
+### 知识库功能（todo）
+- **知识存储与管理**: 将上传的Markdown文件、生成的话题点和深度回答统一导入知识库进行存储和管理。
+- **内容关联与检索**: 支持对知识库中的内容进行高效的关联和检索，方便用户快速查找相关信息。
+- **知识复用**: 促进已生成内容的复用，为后续的话题探索提供基础。
+
+### 联网搜索功能（todo）
+- **深度话题探索**: 针对特定话题点，提供联网搜索能力，获取最新、最全面的信息。
+- **信息整合**: 自动整合搜索结果，辅助用户进行更深入的分析和思考。
+- **实时信息获取**: 确保用户在探索新话题时能够获取到实时的外部信息支持。
 
 ## 配置说明
 
