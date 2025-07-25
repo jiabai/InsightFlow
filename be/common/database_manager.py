@@ -2,11 +2,13 @@ import os
 import uuid
 from typing import List
 from datetime import datetime
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, select, delete
+from sqlalchemy.orm import relationship
 from sqlalchemy.exc import SQLAlchemyError
+
 from be.common.exceptions import DatabaseError
 
 Base = declarative_base()
@@ -77,7 +79,11 @@ class DatabaseManager:
     async def initialize(self):
         try:
             self.engine = create_async_engine(self.database_url, echo=False)
-            self.async_session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
+            self.async_session = async_sessionmaker(
+                self.engine,
+                expire_on_commit=False,
+                class_=AsyncSession
+            )
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to initialize database: {e}") from e
 
@@ -90,6 +96,11 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to initialize database tables: {e}") from e
 
+    async def dispose_engine(self):
+        if self.engine:
+            await self.engine.dispose()
+
+    @asynccontextmanager
     async def get_db(self):
         """
         获取数据库会话
@@ -100,15 +111,6 @@ class DatabaseManager:
             except SQLAlchemyError as e:
                 await db.rollback()
                 raise DatabaseError(f"Database session error: {e}") from e
-            finally:
-                await db.close()
-
-    async def get_file_metadata(self, db: AsyncSession, file_id: str):
-        try:
-            result = await db.execute(select(FileMetadata).filter(FileMetadata.file_id == file_id))
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            raise DatabaseError(f"Failed to get file metadata by file ID {file_id}: {e}") from e
 
     async def save_file_metadata(
         self,
@@ -137,7 +139,39 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to save file metadata: {e}") from e
 
-    async def get_files_by_user_id(
+    async def get_file_metadata_by_file_id(
+        self,
+        db: AsyncSession,
+        file_id: str
+    ):
+        try:
+            result = await db.execute(
+                select(FileMetadata)
+                .filter(FileMetadata.file_id == file_id)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            raise DatabaseError(
+                f"Failed to get file metadata by file ID {file_id}: {e}"
+            ) from e
+
+    async def get_file_metadata_by_stored_filename(
+        self,
+        db: AsyncSession,
+        stored_filename: str
+    ):
+        try:
+            result = await db.execute(
+                select(FileMetadata)
+                .filter(FileMetadata.stored_filename == stored_filename)
+            )
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            raise DatabaseError(
+                f"Failed to get file metadata by stored filename {stored_filename}: {e}"
+            ) from e
+
+    async def get_file_metadata_by_user_id(
         self,
         db: AsyncSession,
         user_id: str,
@@ -155,7 +189,7 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get files by user ID {user_id}: {e}") from e
 
-    async def get_file_by_userid_and_fileid(
+    async def get_file_metadata_by_userid_and_fileid(
         self,
         db: AsyncSession,
         user_id: str,
@@ -173,45 +207,17 @@ class DatabaseManager:
             error_msg += f"and file ID {file_id}: {e}"
             raise DatabaseError(error_msg) from e
 
-    async def save_questions(
-        self,
-        db: AsyncSession,
-        project_id: str,
-        questions: list,
-        chunk_id: str
-    ):
-        """
-        保存问题到数据库
-        """
-        saved_count = 0
-        for q_data in questions:
-            question_id = str(uuid.uuid4())
-            db_question = Question(
-                id=question_id,
-                project_id=project_id,
-                chunk_id=chunk_id,
-                question=q_data['question'],
-                label=q_data.get('label', 'uncategorized')
-            )
-            db.add(db_question)
-            saved_count += 1
-        try:
-            await db.commit()
-        except SQLAlchemyError as e:
-            await db.rollback()
-            raise DatabaseError(f"Failed to save questions: {e}") from e
-        return saved_count
-
-    async def get_chunk_by_file_id(self, db: AsyncSession, file_id: str):
+    async def get_chunk_by_file_id(self, db: AsyncSession, file_id: str) -> List[Chunk]:
         try:
             result = await db.execute(select(Chunk).filter(Chunk.file_id == file_id))
-            return result.scalars().first()
+            return result.scalars().all()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get chunk by file ID {file_id}: {e}") from e
 
     async def get_questions_by_chunk_id(self, db: AsyncSession, chunk_id: str):
         try:
-            result = await db.execute(select(Question).filter(Question.chunk_id == chunk_id)) # Fetch all questions associated with the given chunk ID
+            query = select(Question).filter(Question.chunk_id == chunk_id)
+            result = await db.execute(query)
             return result.scalars().all()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get questions by chunk ID {chunk_id}: {e}") from e
@@ -232,33 +238,72 @@ class DatabaseManager:
             raise DatabaseError(f"Failed to delete questions by chunk ID {chunk_id}: {e}") from e
         return result.rowcount
 
-    async def save_chunks(self, db: AsyncSession, chunks: list, project_id: str, file_id: str, file_name: str):
-        for chunk in chunks:
-            chunk_id = str(uuid.uuid4())
-            db_chunk = Chunk(
-                id=chunk_id,
-                name=chunk.get('heading', ''),
-                project_id=project_id,
-                file_id=file_id,
-                file_name=file_name,
-                content=chunk['content'],
-                summary=chunk.get('summary', ''),
-                size=len(chunk['content'])
-            )
-            db.add(db_chunk)
+    async def save_questions(
+        self,
+        db: AsyncSession,
+        project_id: str,
+        questions: list,
+        chunk_id: str
+    ):
+        """
+        保存问题到数据库
+        """
         try:
+            # # 首先删除已存在的问题
+            # await db.execute(
+            #     delete(Question)
+            #     .where(Question.project_id == project_id, Question.chunk_id == chunk_id)
+            # )
+
+            # 然后插入新的问题
+            new_questions = []
+            for q_data in questions:
+                new_question = Question(
+                    id=str(uuid.uuid4()),
+                    project_id=project_id,
+                    chunk_id=chunk_id,
+                    question=q_data['question'],
+                    label=q_data.get('label', 'uncategorized')
+                )
+                new_questions.append(new_question)
+
+            db.add_all(new_questions)
             await db.commit()
+            return len(new_questions)
+        except SQLAlchemyError as e:
+            await db.rollback()
+            raise DatabaseError(f"Failed to save questions: {e}") from e
+
+    async def save_chunks(
+        self,
+        db: AsyncSession,
+        chunks: list,
+        project_id: str,
+        file_id: str,
+        file_name: str
+    ):
+        try:
+            # 然后插入新的块
+            new_chunks = []
+            for chunk_data in chunks:
+                new_chunk = Chunk(
+                    id=str(uuid.uuid4()),
+                    project_id=project_id,
+                    file_id=file_id,
+                    file_name=file_name,
+                    content=chunk_data['content'],
+                    summary=chunk_data.get('summary', ''),
+                    size=len(chunk_data['content']),
+                    name=chunk_data.get('heading', '')
+                )
+                new_chunks.append(new_chunk)
+
+            db.add_all(new_chunks)
+            await db.commit()
+            return new_chunks
         except SQLAlchemyError as e:
             await db.rollback()
             raise DatabaseError(f"Failed to save chunks: {e}") from e
-        return len(chunks)
-
-    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: str):
-        try:
-            result = await db.execute(select(Chunk).filter(Chunk.id == chunk_id))
-            return result.scalars().first()
-        except SQLAlchemyError as e:
-            raise DatabaseError(f"Failed to get chunk by ID {chunk_id}: {e}") from e
 
     async def delete_file_metadata(self, db: AsyncSession, file_id: str):
         try:
@@ -269,7 +314,14 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to delete file metadata: {e}") from e
 
-    async def get_chunks_by_file_ids(self, db: AsyncSession, file_ids: list):
+    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: str):
+        try:
+            result = await db.execute(select(Chunk).filter(Chunk.id == chunk_id))
+            return result.scalars().first()
+        except SQLAlchemyError as e:
+            raise DatabaseError(f"Failed to get chunk by ID {chunk_id}: {e}") from e
+
+    async def get_chunks_by_file_ids(self, db: AsyncSession, file_ids: list) -> list[Chunk]:
         try:
             result = await db.execute(select(Chunk).filter(Chunk.file_id.in_(file_ids)))
             return result.scalars().all()

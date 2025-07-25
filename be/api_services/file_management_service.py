@@ -1,47 +1,109 @@
+"""
+File Management Service API endpoints.
+
+This module provides FastAPI endpoints for managing file operations including:
+- File upload and download
+- File metadata management 
+- File status tracking
+- Question retrieval for processed files
+
+The service integrates with:
+- Object storage for file content
+- Redis for status tracking
+- Database for metadata and question storage
+
+Key features:
+- Secure file handling with user isolation
+- Deduplication using file hashing
+- Streaming file downloads
+- Status tracking throughout file lifecycle
+- Question generation and retrieval
+"""
+
 import hashlib
+import logging
 from datetime import datetime
 from typing import List, Optional
-import logging
 from urllib.parse import quote
 
-from fastapi import FastAPI, Depends, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from be.common.database_manager import DatabaseManager, FileMetadata
+from be.api_services.fastpai_logger import setup_logging
+from be.common.database_manager import DatabaseManager, FileMetadata, Chunk
 from be.common.redis_manager import RedisManager
 from be.common.storage_manager import StorageManager
-from be.common.logger_config import setup_logging
 from be.common.exceptions import StorageError, DatabaseError, RedisError
 
-# 初始化日志
-setup_logging(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+# Create an APIRouter instance
+router = APIRouter()
 
-app = FastAPI()
+logger = setup_logging(None, log_file='file_management.log', level=logging.DEBUG)
 
 db_manager = DatabaseManager()
 async def get_db():
+    """
+    Dependency function that yields a database session.
+    
+    This function initializes the database engine if not already initialized,
+    and yields database sessions for use in FastAPI endpoints.
+    
+    Yields:
+        AsyncSession: An async SQLAlchemy database session
+    """
     if not db_manager.engine:
         await db_manager.initialize()
-    async for db in db_manager.get_db():
+        await db_manager.init_db()
+    async with db_manager.get_db() as db:
         yield db
 
 redis_manager = RedisManager()
 async def get_redis_manager() -> RedisManager:
-    await redis_manager.init_redis()
+    """
+    Dependency function that initializes and returns a Redis manager instance.
+    
+    This function ensures the Redis manager is initialized before returning it
+    for use in FastAPI endpoints.
+    
+    Returns:
+        RedisManager: An initialized Redis manager instance
+    """
+    await redis_manager.initialize()
     return redis_manager
 
 storage_manager = StorageManager()
 async def get_storage_manager() -> StorageManager:
+    """
+    Dependency function that initializes and returns a storage manager instance.
+    
+    This function ensures the storage manager is initialized before returning it
+    for use in FastAPI endpoints.
+    
+    Returns:
+        StorageManager: An initialized storage manager instance
+    """
     await storage_manager.init_storage()
     return storage_manager
 
 class FileMetadataResponse(BaseModel):
     """
-    文件元数据响应模型，用于API返回文件信息。
+    Pydantic model for file metadata response.
+    
+    This model defines the structure of file metadata that is returned by the API endpoints.
+    It includes essential file information such as ID, name, size, type and timestamps.
+    
+    Attributes:
+        id (int): Database record ID
+        file_id (str): Unique file identifier
+        user_id (str): ID of the user who owns the file
+        filename (str): Original name of the file
+        file_size (int): Size of the file in bytes
+        file_type (Optional[str]): MIME type of the file
+        upload_time (str): ISO formatted timestamp of when the file is uploaded
+        stored_filename (str): Name under which the file is stored in the system
     """
     id: int
     file_id: str
@@ -53,16 +115,36 @@ class FileMetadataResponse(BaseModel):
     stored_filename: str
 
     class Config:
+        """
+        Configuration class for FileMetadataResponse model.
+        
+        This class enables ORM mode by setting from_attributes=True, allowing the model
+        to work directly with SQLAlchemy ORM objects by automatically mapping 
+        attributes from the ORM instance to the Pydantic model fields.
+        """
         from_attributes = True
 
     @field_validator("upload_time", mode="before")
     @classmethod
     def format_upload_time(cls, value):
+        """
+        Format the upload time value to ISO format string.
+
+        This validator ensures that datetime objects are converted to ISO format strings
+        for consistent representation in API responses.
+
+        Args:
+            cls: The class reference (automatically provided by Pydantic)
+            value: The upload time value to format, can be datetime or string
+
+        Returns:
+            str: The upload time in ISO format string
+        """
         if isinstance(value, datetime):
             return value.isoformat()
         return value
 
-@app.post("/upload/{user_id}")
+@router.post("/upload/{user_id}")
 async def upload_file(
     user_id: str,
     file: UploadFile = File(...),
@@ -71,14 +153,35 @@ async def upload_file(
     storage_mgr: StorageManager = Depends(get_storage_manager)
 ):
     """
-    上传文件接口，处理文件上传和元数据存储。
+    Upload a file for a specific user.
 
-    :param user_id: 用户ID，用于关联文件元数据。
-    :param file: 上传的文件对象。
-    :param db: 数据库会话，用于元数据存储。
-    :param redis_manager: Redis管理器，用于文件状态存储。
-    :param storage_manager: 存储管理器，用于文件存储。
-    :return: 上传成功后的文件信息。
+    This endpoint handles file upload by:
+    1. Checking if file already exists using file_id
+    2. Storing file content in object storage
+    3. Saving file metadata to database
+    4. Managing file status in Redis
+
+    Args:
+        user_id (str): ID of the user uploading the file
+        file (UploadFile): The file to be uploaded
+        db_mgr (AsyncSession): Database session for metadata operations
+        redis_mgr (RedisManager): Redis manager for status tracking
+        storage_mgr (StorageManager): Storage manager for file content
+
+    Returns:
+        dict: A dictionary containing:
+            - file_id (str): Unique identifier for the file
+            - filename (str): Original name of the file
+            - size (int): File size in bytes
+            - type (str): File content type
+            - upload_time (str): ISO formatted upload timestamp
+            - stored_filename (str): Name used to store the file
+            - status (str): Upload status message
+
+    Raises:
+        HTTPException: 
+            - 500 if any storage, database or Redis operations fail
+            - 500 for unexpected errors during upload
     """
     file_name = file.filename
     file_id = hashlib.sha256(file_name.encode()).hexdigest()
@@ -168,19 +271,51 @@ async def upload_file(
         # 确保在任何情况下都关闭文件，尽管FastAPI通常会自动处理
         await file.close()
 
-@app.get("/files/", response_model=List[FileMetadataResponse])
-async def get_files(db_mgr: AsyncSession = Depends(get_db)) -> List[FileMetadataResponse]:
+@router.get("/files/", response_model=List[FileMetadataResponse])
+async def get_files(
+    db_mgr: AsyncSession = Depends(get_db)
+) -> List[FileMetadataResponse]:
+    """
+    Retrieve all files from the database.
+
+    This endpoint fetches metadata for all files stored in the system,
+    regardless of user ownership.
+
+    Args:
+        db_mgr (AsyncSession): Database session dependency injection
+
+    Returns:
+        List[FileMetadataResponse]: List of file metadata objects containing file details
+    """
     result = await db_mgr.execute(select(FileMetadata))
     return result.scalars().all()
 
-@app.get("/files/{user_id}", response_model=List[FileMetadataResponse])
+@router.get("/files/{user_id}", response_model=List[FileMetadataResponse])
 async def get_files_by_user(
     user_id: str,
     skip: int = 0,
     limit: int = 100,
     db_mgr: AsyncSession = Depends(get_db)
 ) -> List[FileMetadataResponse]:
-    result = await db_manager.get_files_by_user_id(
+    """
+    Retrieve all files for a specific user with pagination support.
+
+    This endpoint fetches file metadata from the database for the given user_id,
+    with optional pagination parameters to limit the result set.
+
+    Args:
+        user_id (str): ID of the user whose files to retrieve
+        skip (int, optional): Number of records to skip. Defaults to 0.
+        limit (int, optional): Maximum number of records to return. Defaults to 100.
+        db_mgr (AsyncSession): Database session dependency injection
+
+    Returns:
+        List[FileMetadataResponse]: List of file metadata objects containing file details
+
+    Raises:
+        HTTPException: 404 if no files are found for the given user_id
+    """
+    result = await db_manager.get_file_metadata_by_user_id(
         db=db_mgr,
         user_id=user_id,
         skip=skip,
@@ -193,13 +328,30 @@ async def get_files_by_user(
         )
     return result
 
-@app.get("/files/{user_id}/{file_id}", response_model=FileMetadataResponse)
+@router.get("/files/{user_id}/{file_id}", response_model=FileMetadataResponse)
 async def get_file_by_user_and_fileid(
     user_id: str,
     file_id: str,
     db_mgr: AsyncSession = Depends(get_db)
 ) -> FileMetadataResponse:
-    result = await db_manager.get_file_by_userid_and_fileid(
+    """
+    Retrieve file metadata for a specific user and file ID.
+
+    This endpoint fetches file metadata from the database for the 
+    given user_id and file_id combination.
+
+    Args:
+        user_id (str): ID of the user who owns the file
+        file_id (str): Unique identifier of the file to retrieve
+        db_mgr (AsyncSession): Database session dependency injection
+
+    Returns:
+        FileMetadataResponse: File metadata object containing file details
+
+    Raises:
+        HTTPException: 404 if no file is found for the given user_id and file_id
+    """
+    result = await db_manager.get_file_metadata_by_userid_and_fileid(
         db=db_mgr,
         user_id=user_id,
         file_id=file_id
@@ -212,7 +364,7 @@ async def get_file_by_user_and_fileid(
         )
     return result
 
-@app.delete("/delete/{user_id}/{file_id}")
+@router.delete("/delete/{user_id}/{file_id}")
 async def delete_file(
     user_id: str,
     file_id: str,
@@ -220,6 +372,34 @@ async def delete_file(
     redis_mgr: RedisManager = Depends(get_redis_manager),
     storage_mgr: StorageManager = Depends(get_storage_manager)
 ):
+    """
+    Delete a file and its associated metadata for a specific user.
+
+    This endpoint performs the following operations:
+    1. Verifies file exists for the given user
+    2. Deletes the file from storage
+    3. Removes file metadata from database
+    4. Cleans up file status from Redis
+
+    Args:
+        user_id (str): ID of the user who owns the file
+        file_id (str): Unique identifier of the file to delete
+        db_mgr (AsyncSession): Database session for metadata operations
+        redis_mgr (RedisManager): Redis manager for status cleanup
+        storage_mgr (StorageManager): Storage manager for file deletion
+
+    Returns:
+        dict: A message confirming successful deletion containing:
+            - message (str): Success message with filename
+
+    Raises:
+        HTTPException: 
+            - 404 if file not found
+            - 500 for internal server errors during deletion
+        FileNotFoundError: If file metadata not found
+        DatabaseError: If database operations fail
+        RedisError: If Redis operations fail
+    """
     try:
         result = await db_mgr.execute(
             select(FileMetadata).filter(
@@ -274,23 +454,62 @@ async def delete_file(
             detail=f"Internal server error: {str(e)}"
         ) from e
 
-@app.get("/file_status/{file_id}")
+@router.get("/file_status/{file_id}")
 async def redis_file_status(
     file_id: str,
     redis_mgr: RedisManager = Depends(get_redis_manager)
 ):
+    """
+    Get the processing status of a file from Redis.
+
+    This endpoint retrieves the current processing status of a file from Redis using its file_id.
+    The status indicates the current state of file processing 
+    (e.g., "Pending", "Processing", "Completed").
+
+    Args:
+        file_id (str): The unique identifier of the file to check status for
+        redis_mgr (RedisManager): Redis manager instance for accessing Redis storage
+
+    Returns:
+        dict: A dictionary containing:
+            - file_id (str): The input file ID
+            - status (str): Current processing status of the file
+
+    Raises:
+        HTTPException: 404 if no status is found for the given file_id
+    """
     status = await redis_mgr.get_file_status(file_id)
     if status is None:
         raise HTTPException(status_code=404, detail="File status not found in Redis")
     return {"file_id": file_id, "status": status}
 
-@app.get("/download/{user_id}/{file_id}")
+@router.get("/download/{user_id}/{file_id}")
 async def download_file(
     user_id: str,
     file_id: str,
     db_mgr: AsyncSession = Depends(get_db)
 ):
-    file_metadata = await db_manager.get_file_by_userid_and_fileid(
+    """
+    Download a file for a specific user.
+
+    This endpoint retrieves file metadata from the database and streams the file content
+    from storage for download. The file name is URL encoded to handle special characters.
+
+    Args:
+        user_id (str): ID of the user requesting the file
+        file_id (str): Unique identifier of the file to download
+        db_mgr (AsyncSession): Database session dependency injection
+
+    Returns:
+        StreamingResponse: A streaming response containing:
+            - File content as a stream
+            - Content-Type header matching the file's type
+            - Content-Disposition header for download with encoded filename
+
+    Raises:
+        HTTPException: 404 if the file is not found for the given user_id and file_id
+    """
+    file_metadata = await db_manager.get_file_metadata_by_userid_and_fileid(
         db=db_mgr,
         user_id=user_id,
         file_id=file_id
@@ -313,44 +532,57 @@ async def download_file(
         }
     )
 
-@app.get("/questions/{file_id}")
+@router.get("/questions/{file_id}")
 async def get_questions_by_file(
     file_id: str,
-    db: AsyncSession = Depends(get_db)
+    db_mgr: AsyncSession = Depends(get_db)
 ):
+    """
+    Retrieve all questions associated with a specific file.
+
+    This endpoint checks if file processing is completed via Redis status,
+    then fetches all chunks associated with the file and their corresponding questions
+    from the database.
+
+    Args:
+        file_id (str): The unique identifier of the file
+        db_mgr (AsyncSession): Database session dependency injection
+
+    Returns:
+        dict: A dictionary containing:
+            - file_id (str): The input file ID
+            - questions (List[dict]): List of question objects, each containing:
+                - question (str): The question text
+                - label (str): The question label/category
+                - chunk_id (int): ID of the chunk this question belongs to
+
+    Raises:
+        HTTPException: 
+            - 400 if file processing is not completed
+            - 404 if no chunks found for the file
+    """
     # 首先检查文件状态
+    await redis_manager.initialize()
     status = await redis_manager.get_file_status(file_id)
     if status != "Completed":
         raise HTTPException(
             status_code=400,
             detail=f"File processing not completed, current status: {status}"
         )
-
+    logger.debug("File processing completed, status: %s", status)
     # 获取文件关联的所有chunks
-    chunks = db_manager.get_chunk_by_file_id(db, file_id)
+    chunks: List[Chunk] = await db_manager.get_chunk_by_file_id(db_mgr, file_id)
     if not chunks:
         raise HTTPException(status_code=404, detail="No chunks found for this file")
-
+    logger.debug("Found %d chunks for file_id %s", len(chunks), file_id)
     # 收集所有问题
     all_questions = []
     for chunk in chunks:
-        questions = db_manager.get_questions_by_chunk_id(db, chunk.id)
+        questions = await db_manager.get_questions_by_chunk_id(db_mgr, chunk.id)
         all_questions.extend([{
             "question": q.question,
             "label": q.label,
             "chunk_id": chunk.id
         } for q in questions])
-
+    logger.debug("Found %d questions for file_id %s", len(all_questions), file_id)
     return {"file_id": file_id, "questions": all_questions}
-
-@app.on_event("shutdown")
-async def shutdown():
-    if db_manager.engine:
-        await db_manager.engine.dispose()
-    if redis_manager.redis_client:
-        await redis_manager.redis_client.close()
-        await redis_manager.redis_client.wait_closed()
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)

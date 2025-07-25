@@ -1,3 +1,17 @@
+"""
+A utility class for processing and splitting markdown text into manageable sections.
+
+This module provides functionality to:
+- Extract document outlines from markdown text
+- Split content based on headings and length constraints 
+- Generate summaries for each section
+- Handle merging of short sections and splitting of long sections
+
+The main class MarkdownSplitter offers methods to process markdown documents
+while maintaining their semantic structure and ensuring sections stay within
+specified length bounds.
+"""
+
 import re
 
 class MarkdownSplitter:
@@ -11,70 +25,66 @@ class MarkdownSplitter:
         """
         pass
     def split_markdown(self, text, min_length=1500, max_length=2000):
-        outline = self.extract_outline(text)
-        
+        """
+        Split markdown text into sections based on length constraints and headings.
+
+        This method processes markdown text by:
+        1. Extracting the document outline
+        2. Splitting content by headings
+        3. Processing sections to meet length constraints
+        4. Generating summaries for each section
+
+        Args:
+            text (str): The markdown text to split
+            min_length (int, optional): Minimum length for each section. Defaults to 1500.
+            max_length (int, optional): Maximum length for each section. Defaults to 2000.
+
+        Returns:
+            list: List of dictionaries containing processed sections with keys:
+                 'summary': Generated summary for the section
+                 'content': Content of the section
+        """
+        outline = self._extract_outline(text)
+
         # outline_str = '\n'.join([f"{item['level'] * '#'} {item['title']}" for item in outline])
         # print(f"Outline:\n{outline_str}")
 
-        sections = self.split_by_headings(text, outline)
-        result = self.process_sections(sections, outline, min_length, max_length)
+        sections = self._split_by_headings(text, outline)
+
+        # print(sections)
+        result = self._process_sections(sections, outline, min_length, max_length)
 
         return [{'summary': r['summary'], 'content': r['content']} for r in result]
 
-    def process_sections(self, sections, outline, min_split_length, max_split_length):
+    def _process_sections(self, sections, outline, min_split_length, max_split_length):
         """
-        处理并合并Markdown段落，确保每个部分在指定长度范围内
-        
-        参数:
-            sections: 原始分割的Markdown段落列表
-            outline: Markdown大纲结构
-            min_split_length: 最小分割长度
-            max_split_length: 最大分割长度
-            
-        返回:
-            处理后的段落列表，每个段落包含摘要和内容
+        Process and merge markdown sections based on length constraints.
+
+        This method processes markdown sections by:
+        1. Merging short sections that are below min_split_length
+        2. Splitting long sections that exceed max_split_length
+        3. Generating appropriate summaries for each resulting section
+
+        Args:
+            sections (list): List of dictionaries containing section data with keys:
+                           'content', 'heading', 'level', and 'position'
+            outline (list): Document outline containing heading hierarchy information
+            min_split_length (int): Minimum length threshold for a section
+            max_split_length (int): Maximum length threshold for a section
+
+        Returns:
+            list: List of dictionaries containing processed sections with keys:
+                 'summary': Generated summary for the section
+                 'content': Processed content of the section
         """
-        preprocessed_sections = []  # 预处理后的段落列表
-        current_section = None  # 当前正在处理的段落
-
-        for section in sections:
-            content_length = len(section['content'].strip())
-
-            # 如果当前段落太短且有前一个段落，尝试合并
-            if content_length < min_split_length and current_section is not None:
-                # 合并内容，保留标题格式
-                merged_content = f"{current_section['content']}\n\n{'#' * section['level']} {section['heading']}\n{section['content']}" if section.get('heading') else f"{current_section['content']}\n\n{section['content']}"
-
-                # 检查合并后内容是否超过最大长度限制
-                if len(merged_content) <= max_split_length:
-                    current_section['content'] = merged_content
-                    if section.get('heading'):
-                        if 'headings' not in current_section:
-                            current_section['headings'] = []
-                        current_section['headings'].append({
-                            'heading': section['heading'],
-                            'level': section['level'],
-                            'position': section['position']
-                        })
-                    continue
-
-            # 将当前段落添加到预处理列表
-            if current_section:
-                preprocessed_sections.append(current_section)
-            
-            # 开始处理新段落
-            current_section = dict(section)
-            if section.get('heading'):
-                current_section['headings'] = [{'heading': section['heading'], 'level': section['level'], 'position': section['position']}]
-            else:
-                current_section['headings'] = []
-
-        # 添加最后一个未处理的段落
-        if current_section:
-            preprocessed_sections.append(current_section)
+        preprocessed_sections = self._merge_short_sections(
+            sections,
+            min_split_length,
+            max_split_length
+        )
 
         result = []
-        accumulated_section = None
+        accumulated_section = {}
 
         for section in preprocessed_sections:
             content_length = len(section['content'].strip())
@@ -84,7 +94,10 @@ class MarkdownSplitter:
                 if not accumulated_section:
                     accumulated_section = dict(section)  # 初始化累积段落
                 else:
-                    accumulated_section['content'] += f"\n\n{'#' * section['level']} {section['heading']}\n{section['content']}" if section.get('heading') else f"\n\n{section['content']}"
+                    accumulated_section['content'] += (
+                        f"\n\n{'#' * section['level']} {section['heading']}\n{section['content']}"
+                        if section.get('heading') else f"\n\n{section['content']}"
+                    )
                     if section.get('heading'):
                         if 'headings' not in accumulated_section:
                             accumulated_section['headings'] = []
@@ -93,70 +106,71 @@ class MarkdownSplitter:
                             'level': section['level'],
                             'position': section['position']
                         })
-                
+
                 accumulated_length = len(accumulated_section['content'].strip())
                 if accumulated_length >= min_split_length:
-                    summary = self.generate_enhanced_summary(accumulated_section, outline)
-                    if accumulated_length > max_split_length:
-                        sub_sections = self.split_long_section(accumulated_section, max_split_length)
-                        for i, sub_content in enumerate(sub_sections):
-                            result.append({
-                                'summary': f'{summary} - Part {i + 1}/{len(sub_sections)}',
-                                'content': sub_content
-                            })
-                    else:
-                        result.append({
-                            'summary': summary,
-                            'content': accumulated_section['content']
-                        })
-                    accumulated_section = None
+                    self._process_accumulated_sections(
+                        accumulated_section,
+                        outline,
+                        min_split_length,
+                        max_split_length,
+                        result
+                    )
+                    accumulated_section = {}
                 continue
-
-            if accumulated_section:
-                summary = self.generate_enhanced_summary(accumulated_section, outline)
-                accumulated_length = len(accumulated_section['content'].strip())
-                if accumulated_length > max_split_length:
-                    sub_sections = self.split_long_section(accumulated_section, max_split_length)
-                    for i, sub_content in enumerate(sub_sections):
-                        result.append({
-                            'summary': f'{summary} - Part {i + 1}/{len(sub_sections)}',
-                            'content': sub_content
-                        })
-                else:
-                    result.append({
-                        'summary': summary,
-                        'content': accumulated_section['content']
-                    })
-                accumulated_section = None
+            self._process_accumulated_sections(
+                accumulated_section,
+                outline,
+                min_split_length,
+                max_split_length,
+                result
+            )
+            accumulated_section = {}
 
             # 处理过长的段落
             if content_length > max_split_length:
-                sub_sections = self.split_long_section(section, max_split_length)  # 分割长段落
+                sub_sections = self._split_long_section(
+                    section,
+                    max_split_length
+                )  # 分割长段落
                 for i, sub_content in enumerate(sub_sections):
-                    summary = self.generate_enhanced_summary(section, outline, i + 1, len(sub_sections))
+                    summary = self._generate_enhanced_summary(
+                        section,
+                        i + 1,
+                        len(sub_sections)
+                    )
                     result.append({
                         'summary': summary,
                         'content': sub_content
                     })
             else:
-                summary = self.generate_enhanced_summary(section, outline)
-                content = f"{'#' * section['level']} {section['heading']}\n{section['content']}" if section.get('heading') else section['content']
+                summary = self._generate_enhanced_summary(
+
+                    section,
+                    outline
+                )
+                if section.get('heading'):
+                    heading = '#' * section['level'] + ' ' + section['heading']
+                    content = f"{heading}\n{section['content']}"
+                else:
+                    content = section['content']
                 result.append({
                     'summary': summary,
                     'content': content
                 })
 
-        if accumulated_section:
-            summary = self.generate_enhanced_summary(accumulated_section, outline)
-            content = f"{'#' * accumulated_section['level']} {accumulated_section['heading']}\n{accumulated_section['content']}" if accumulated_section.get('heading') else accumulated_section['content']
-            result.append({
-                'summary': summary,
-                'content': content
-            })
+        self._process_accumulated_sections(
+            accumulated_section,
+            outline,
+            min_split_length,
+            max_split_length,
+            result
+        )
 
         return result
 
-    def extract_outline(self, text):
+    def _extract_outline(self, text):
+
         """
         从 Markdown 文本中提取标题大纲。
 
@@ -177,20 +191,23 @@ class MarkdownSplitter:
             outline.append({"level": level, "title": title, "position": match.start()})
         return outline
 
-    def split_by_headings(self, text, outline):
+    def _split_by_headings(self, text, outline):
         """
-        根据标题将 Markdown 文本分割成多个部分。
+        Split markdown text into sections based on headings from the outline.
 
         Args:
-            text (str): 完整的 Markdown 文本内容。
-            outline (list): 由 `extract_outline` 方法生成的大纲列表。
+            text (str): The markdown text content to split.
+            outline (list): List of dictionaries containing heading information with keys:
+                          - level (int): Heading level (1-6)
+                          - title (str): Heading text
+                          - position (int): Starting position of heading in text
 
         Returns:
-            list: 包含分割后内容的字典列表，每个字典包含：
-                  - heading (str or None): 当前部分的标题文本，如果无标题则为 None。
-                  - level (int): 当前部分的标题级别，如果无标题则为 0。
-                  - content (str): 当前部分的文本内容。
-                  - position (int): 当前部分在原始文本中的起始位置。
+            list: List of dictionaries containing section information with keys:
+                 - heading (str): Section heading text (None for content before first heading)
+                 - level (int): Heading level (0 for content before first heading)
+                 - content (str): Content text under the heading
+                 - position (int): Starting position of the section in original text
         """
         # 如果大纲为空，则整个文本作为一个部分返回
         if not outline:
@@ -225,7 +242,7 @@ class MarkdownSplitter:
             heading_line = text[current["position"] :].split('\n', 1)[0]
             start_pos = current["position"] + len(heading_line) + 1
             end_pos = next_heading["position"] if next_heading else len(text)
-            
+
             # 提取当前标题下的内容
             content = text[start_pos:end_pos].strip()
 
@@ -239,17 +256,19 @@ class MarkdownSplitter:
             )
         return sections
 
-    def split_long_section(self, section, max_length):
+    def _split_long_section(self, section, max_length):
         """
-        将一个过长的部分分割成多个子部分，确保每个子部分不超过最大长度。
-        尽量在句子或段落边界进行分割。
+        Split a long section of text into smaller subsections based on a maximum length.
 
         Args:
-            section (dict): 包含 'content' 的部分字典。
-            max_length (int): 每个子部分的最大长度。
+            section (dict): A dictionary containing the section information with 
+            at least a 'content' key
+            max_length (int): The maximum length allowed for each subsection
 
         Returns:
-            list: 包含分割后子部分内容的列表。
+            list: A list of strings, where each string is a subsection of the original content,
+                  split at natural break points (newlines or periods) while respecting the 
+                  max_length constraint
         """
         content = section['content']
         sub_sections = []
@@ -272,7 +291,7 @@ class MarkdownSplitter:
                 else:
                     # 如果没有合适的分割点，则强制在max_length处分割
                     split_point = search_end
-            
+
             # 确保分割点不会导致空段落或过小的段落，并且不会超出内容长度
             if split_point <= current_pos or split_point > len(content):
                 split_point = search_end # 强制分割
@@ -281,6 +300,120 @@ class MarkdownSplitter:
             current_pos = split_point
 
         return sub_sections
+
+    def _process_accumulated_sections(
+        self,
+        accumulated_section,
+        outline,
+        min_split_length,
+        max_split_length,
+        result
+    ):
+        """
+        Process accumulated sections and add them to the result list.
+
+        This helper method handles the processing of accumulated sections by:
+        1. Checking if the accumulated section meets minimum length requirements
+        2. Generating appropriate summaries for the section
+        3. Splitting sections that exceed maximum length
+        4. Adding processed sections to the result list
+
+        Args:
+            accumulated_section (dict): Dictionary containing the accumulated section data
+                                      with keys like 'content', 'heading', etc.
+            outline (list): Document outline containing heading hierarchy information
+            min_split_length (int): Minimum length threshold for a section
+            max_split_length (int): Maximum length threshold for a section
+            result (list): List to store the processed sections, each containing
+                          'summary' and 'content' keys
+
+        Returns:
+            None: Modifies the result list in-place
+        """
+        if not accumulated_section:
+            return
+        accumulated_length = len(accumulated_section['content'].strip())
+        if accumulated_length >= min_split_length:
+            summary = self._generate_enhanced_summary(accumulated_section, outline)
+            if accumulated_length > max_split_length:
+                sub_sections = self._split_long_section(accumulated_section, max_split_length)
+
+                for i, sub_content in enumerate(sub_sections):
+                    result.append({
+                        'summary': f'{summary} - Part {i + 1}/{len(sub_sections)}',
+                        'content': sub_content
+                    })
+            else:
+                result.append({
+                    'summary': summary,
+                    'content': accumulated_section['content']
+                })
+
+    def _merge_short_sections(self, sections, min_split_length, max_split_length):
+        """
+        Merge consecutive short sections that are below the minimum length threshold.
+
+        This method processes a list of markdown sections and attempts to merge sections
+        that are shorter than min_split_length, while ensuring the merged content does
+        not exceed max_split_length.
+
+        Args:
+            sections (list): List of dictionaries containing section data with keys:
+                           'content', 'heading', 'level', and 'position'
+            min_split_length (int): Minimum length threshold for a section
+            max_split_length (int): Maximum length threshold for a section
+
+        Returns:
+            list: List of preprocessed sections where short sections have been merged
+                 when possible. Each section maintains the original structure with
+                 additional 'headings' key for tracking merged section headers.
+        """
+        preprocessed_sections = []
+        current_section = {}
+
+        for section in sections:
+            content_length = len(section['content'].strip())
+
+            if content_length < min_split_length and current_section:
+                merged_content = (
+                    f"{current_section['content']}\n\n"
+                    f"{'#' * section['level']} {section['heading']}\n"
+                    f"{section['content']}"
+                ) if section.get('heading') else (
+                    f"{current_section['content']}\n\n"
+                    f"{section['content']}"
+                )
+
+                if len(merged_content) <= max_split_length:
+                    current_section['content'] = merged_content
+                    if section.get('heading'):
+                        if 'headings' not in current_section:
+                            current_section['headings'] = []
+                        current_section['headings'].append({
+                            'heading': section['heading'],
+                            'level': section['level'],
+                            'position': section['position']
+                        })
+                    continue
+
+            if current_section:
+                preprocessed_sections.append(current_section)
+
+            current_section = dict(section)
+            if section.get('heading'):
+                current_section['headings'] = [
+                    {
+                        'heading': section['heading'],
+                        'level': section['level'], 
+                        'position': section['position']
+                    }
+                ]
+            else:
+                current_section['headings'] = []
+
+        if current_section:
+            preprocessed_sections.append(current_section)
+        return preprocessed_sections
 
     def _get_doc_title_prefix(self, outline):
         """
@@ -328,7 +461,8 @@ class MarkdownSplitter:
             # 找到当前标题在outline中的索引
             current_idx = -1
             for i, item in enumerate(outline):
-                if item['title'] == heading_info['heading'] and item['level'] == heading_info['level']:
+                if (item['title'] == heading_info['heading'] and 
+                    item['level'] == heading_info['level']):
                     current_idx = i
                     break
 
@@ -418,74 +552,84 @@ class MarkdownSplitter:
                 if not paths[j].startswith(prefix + ' > '):
                     is_common_prefix = False
                     break
-            
             # 如果找到了共同前缀
             if is_common_prefix:
                 summary = prefix + ' > ['
                 # 提取每个路径中共同前缀之后的部分
-                for j in range(len(paths)):
-                    unique_part = paths[j][len(prefix) + 3:] # +3 for ' > ['
+                for j, path in enumerate(paths):
+                    unique_part = path[len(prefix) + 3:] # +3 for ' > ['
                     summary += (', ' if j > 0 else '') + unique_part
                 summary += ']'
                 return summary
-
         # 如果没有找到共同前缀，则将所有路径用逗号连接
         return ', '.join(paths)
 
-    def _generate_summary_for_multi_headings(self, section, outline, part_index, total_parts):
-        """
-        为包含多个子标题的段落生成摘要。
-
-        Args:
-            section (dict): 包含 'headings' 的部分字典。
-            outline (list): 完整的文档大纲。
-            part_index (int): 当前部分的索引。
-            total_parts (int): 总部分数。
-
-        Returns:
-            str: 生成的摘要字符串。
-        """
+    def _generate_summary_for_multi_headings(
+        self,
+        section,
+        outline,
+        part_index,
+        total_parts
+    ):
         headings_in_section = section.get('headings', [])
         if not headings_in_section:
-            return self._format_summary_with_part_info(self._get_doc_title_prefix(outline) + " - 多个子标题段落", part_index, total_parts)
+            return self._format_summary_with_part_info(
+                self._get_doc_title_prefix(outline) + " - 多个子标题段落", part_index, total_parts
+            )
 
         # 提取所有标题文本并用 " - " 连接
         summary_parts = [h['heading'] for h in headings_in_section]
         base_summary = " - ".join(summary_parts)
-        return self._format_summary_with_part_info(base_summary, part_index, total_parts)
+        return self._format_summary_with_part_info(
+                    base_summary,
+                    part_index,
+                    total_parts
+                )
 
-    def _generate_summary_for_single_heading(self, section, outline, part_index, total_parts):
-        """
-        为包含单个标题的段落生成摘要。
-
-        Args:
-            section (dict): 包含 'heading' 的部分字典。
-            outline (list): 完整的文档大纲。
-            part_index (int): 当前部分的索引。
-            total_parts (int): 总部分数。
-
-        Returns:
-            str: 生成的摘要字符串。
-        """
+    def _generate_summary_for_single_heading(
+        self,
+        section,
+        outline,
+        part_index,
+        total_parts
+    ):
         heading_path = self._build_heading_path(section, outline)
         if heading_path:
             base_summary = " - ".join(heading_path)
         else:
             base_summary = section.get('heading', '未命名段落')
-        return self._format_summary_with_part_info(base_summary, part_index, total_parts)
+        return self._format_summary_with_part_info(
+                    base_summary,
+                    part_index,
+                    total_parts
+                )
 
-    def generate_enhanced_summary(self, section, outline, part_num=None, total_parts=None):
+    def _generate_enhanced_summary(
+        self,
+        section,
+        part_num=None,
+        total_parts=None
+    ):
         """
-        为给定的部分生成增强的摘要。
+        Generate an enhanced summary for a markdown section.
+
+        This method creates a summary based on section headings or content.
+        If the section contains multiple headings, it combines them.
+        For split sections, it adds part numbering information.
 
         Args:
-            section (dict): 包含 'content' 和 'headings' 的部分字典。
-            outline (list): 完整的文档大纲。
-            part_num (int, optional): 如果部分被分割，这是当前部分的编号。
-            total_parts (int, optional): 如果部分被分割，这是总部分的数量。
+            section (dict): Dictionary containing section data with optional keys:
+                          'headings': List of heading dictionaries
+                          Each heading dictionary contains:
+                              'heading': Heading text
+                              'level': Heading level
+                              'position': Position in document
+            part_num (int, optional): Current part number for split sections
+            total_parts (int, optional): Total number of parts for split sections
 
         Returns:
-            str: 生成的摘要字符串。
+            str: Generated summary string, optionally with part numbering
+                 Format: "Heading1 - Heading2 (Part X/Y)" or "Content Summary"
         """
         # 如果部分包含标题，则使用这些标题作为摘要
         if section.get('headings'):

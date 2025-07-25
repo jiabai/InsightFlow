@@ -21,7 +21,7 @@ class RedisManager:
         self.redis_port = int(os.getenv("REDIS_PORT", "6379"))
         self.redis_client = None
 
-    async def init_redis(self):
+    async def initialize(self):
         """Asynchronously initializes the Redis connection by pinging the server."""
         try:
             self.redis_client = await aioredis.create_redis_pool(
@@ -69,3 +69,9 @@ class RedisManager:
             await self.redis_client.delete(file_id)
         except aioredis.RedisError as e:
             raise RedisError(f"Failed to delete file status for {file_id}: {e}") from e
+
+    async def close_redis(self):
+        """Asynchronously close the Redis connection."""
+        if self.redis_client:
+            self.redis_client.close()
+            await self.redis_client.wait_closed()
