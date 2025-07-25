@@ -1,6 +1,22 @@
+"""
+Database manager module for InsightFlow.
+
+This module provides database models and operations for managing file metadata,
+chunks and questions in the InsightFlow application. It handles database connections,
+CRUD operations and error handling using SQLAlchemy ORM.
+
+Models:
+- FileMetadata: Stores metadata about uploaded files
+- Chunk: Represents segments of processed files
+- Question: Stores questions generated from file chunks
+
+The DatabaseManager class provides methods to interact with these models
+and manage database operations in an async context.
+"""
+
 import os
 import uuid
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -15,26 +31,58 @@ Base = declarative_base()
 
 class FileMetadata(Base):
     """
-    数据库中文件元数据表的模型。
+    Model class for storing file metadata information.
+
+    This class represents the file_metadata table in the database and stores
+    information about uploaded files including file ID, user ID, filename,
+    file size, type and upload timestamps.
+
+    Attributes:
+        id (int): Primary key
+        file_id (str): Unique identifier for the file
+        user_id (str): ID of the user who uploaded the file
+        filename (str): Original name of the uploaded file
+        file_size (int): Size of the file in bytes
+        file_type (str): MIME type or extension of the file
+        upload_time (datetime): When the file was uploaded
+        stored_filename (str): Name used to store the file in the system
     """
     __tablename__ = "file_metadata"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     file_id = Column(String(255), unique=True, index=True)
-    user_id = Column(String(255), index=True)
-    filename = Column(String(255), index=True)
+    user_id = Column(String(255))
+    filename = Column(String(255))
     file_size = Column(Integer)
     file_type = Column(String(255))
     upload_time = Column(DateTime, default=datetime.now)
-    stored_filename = Column(String(255), unique=True, index=True)
+    stored_filename = Column(String(255))
 
 class Chunk(Base):
+    """
+    Model class for storing file chunk information.
+
+    This class represents the chunks table in the database and stores
+    information about segments of processed files.
+
+    Attributes:
+        id (str): Primary key
+        name (str): Name of the chunk
+        project_id (str): ID of the project the chunk belongs to
+        file_id (str): ID of the file the chunk is from
+        file_name (str): Name of the file the chunk is from
+        content (text): Content of the chunk
+        summary (text): Summary of the chunk
+        size (int): Size of the chunk in bytes
+        created_at (datetime): When the chunk was created
+        updated_at (datetime): When the chunk was last updated
+    """
     __tablename__ = 'chunks'
 
     id = Column(String(255), primary_key=True)
+    user_id = Column(String(255))
     name = Column(String(255))
-    project_id = Column(String(255), index=True)
-    file_id = Column(String(255), ForeignKey('file_metadata.file_id'))
+    file_id = Column(String(255), ForeignKey('file_metadata.file_id'), index=True)
     file_name = Column(String(255))
     content = Column(Text)
     summary = Column(Text)
@@ -45,10 +93,28 @@ class Chunk(Base):
     questions = relationship("Question", back_populates="chunk")
 
 class Question(Base):
+    """
+    Model class for storing questions generated from file chunks.
+
+    This class represents the questions table in the database and stores
+    information about questions generated from processed file chunks.
+
+    Attributes:
+        id (str): Primary key
+        file_id (str): ID of the file the question is from
+        user_id (str): ID of the user who owns the question
+        chunk_id (str): ID of the chunk the question is from
+        question (text): The actual question text
+        label (str): Category/label for the question
+        answered (bool): Whether the question has been answered
+        created_at (datetime): When the question was created
+        updated_at (datetime): When the question was last updated
+    """
     __tablename__ = 'questions'
 
     id = Column(String(255), primary_key=True)
-    project_id = Column(String(255), index=True)
+    file_id = Column(String(255), ForeignKey('file_metadata.file_id'), index=True)
+    user_id = Column(String(255))
     chunk_id = Column(String(255), ForeignKey('chunks.id'))
     question = Column(Text)
     label = Column(String(255))
@@ -60,7 +126,14 @@ class Question(Base):
 
 class DatabaseManager:
     """
-    数据库操作封装类
+    Database manager class for InsightFlow.
+
+    This class provides methods to interact with the database, including
+    initializing the database, creating tables, and managing database sessions.
+
+    Attributes:
+        engine (AsyncEngine): SQLAlchemy async engine for database operations
+        async_session (AsyncSession): SQLAlchemy async session factory
     """
     async def _create_all_tables(self):
         async with self.engine.begin() as conn:
@@ -68,7 +141,6 @@ class DatabaseManager:
         await self.engine.dispose()
 
     def __init__(self):
-        # 数据库配置
         self.database_name = os.getenv("DB_NAME", "insight_flow")
         self.database_url = (
             f"mysql+aiomysql://root:123456@192.168.31.233/"
@@ -78,6 +150,9 @@ class DatabaseManager:
         self.async_session = None
 
     async def initialize(self):
+        """
+        Initialize the database engine and session factory.
+        """
         try:
             self.engine = create_async_engine(self.database_url, echo=False)
             self.async_session = async_sessionmaker(
@@ -90,21 +165,30 @@ class DatabaseManager:
 
     async def init_db(self):
         """
-        初始化数据库，创建所有表。
+        Initialize the database by creating all tables.
         """
         try:
             await self._create_all_tables()
         except SQLAlchemyError as e:
-            raise DatabaseError(f"Failed to initialize database tables: {e}") from e
+            raise DatabaseError(f"Failed to create database tables: {e}") from e
 
     async def dispose_engine(self):
+        """
+        Dispose the database engine.
+        """
         if self.engine:
             await self.engine.dispose()
 
     @asynccontextmanager
     async def get_db(self):
         """
-        获取数据库会话
+        Get a database session.
+
+        This method provides a context manager for database sessions,
+        ensuring that the session is properly closed after use.
+
+        Yields:
+            AsyncSession: A database session object.
         """
         async with self.async_session() as db:
             try:
@@ -122,7 +206,25 @@ class DatabaseManager:
         file_size: int,
         file_type: str,
         stored_filename: str
-    ):
+    ) -> FileMetadata:
+        """
+        Save file metadata to the database.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_id (str): Unique identifier for the file
+            user_id (str): Unique identifier for the user
+            filename (str): Name of the file
+            file_size (int): Size of the file in bytes
+            file_type (str): Type of the file (e.g., 'pdf', 'docx')
+            stored_filename (str): Name of the file as stored in the system
+
+        Returns:
+            FileMetadata: The saved file metadata object
+
+        Raises:
+            DatabaseError: If there's an error while saving the file metadata
+        """
         try:
             file_metadata = FileMetadata(
                 file_id=file_id,
@@ -144,7 +246,20 @@ class DatabaseManager:
         self,
         db: AsyncSession,
         file_id: str
-    ) -> FileMetadata:
+    ) -> Optional[FileMetadata]:
+        """
+        Get file metadata by file ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_id (str): Unique identifier for the file
+
+        Returns:
+            Optional[FileMetadata]: File metadata object if found, None otherwise
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(
                 select(FileMetadata)
@@ -160,7 +275,20 @@ class DatabaseManager:
         self,
         db: AsyncSession,
         stored_filename: str
-    ):
+    ) -> Optional[FileMetadata]:
+        """
+        Get file metadata by stored filename.
+
+        Args:
+            db (AsyncSession): Database session object
+            stored_filename (str): Name of the file as stored in the system
+
+        Returns:
+            Optional[FileMetadata]: File metadata object if found, None otherwise
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(
                 select(FileMetadata)
@@ -179,6 +307,21 @@ class DatabaseManager:
         skip: int = 0,
         limit: int = 100
     ) -> List[FileMetadata]:
+        """
+        Get file metadata by user ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            user_id (str): Unique identifier for the user
+            skip (int): Number of records to skip (default: 0)
+            limit (int): Maximum number of records to return (default: 100)
+
+        Returns:
+            List[FileMetadata]: List of file metadata objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(
                 select(FileMetadata)
@@ -194,6 +337,18 @@ class DatabaseManager:
         self,
         db: AsyncSession
     ) -> List[FileMetadata]:
+        """
+        Get all file metadata from the database.
+
+        Args:
+            db (AsyncSession): Database session object
+
+        Returns:
+            List[FileMetadata]: List of all file metadata objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(select(FileMetadata))
             return result.scalars().all()
@@ -205,7 +360,21 @@ class DatabaseManager:
         db: AsyncSession,
         user_id: str,
         file_id: str
-    ) -> FileMetadata:
+    ) -> Optional[FileMetadata]:
+        """
+        Get file metadata by user ID and file ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            user_id (str): Unique identifier for the user
+            file_id (str): Unique identifier for the file
+
+        Returns:
+            Optional[FileMetadata]: File metadata object if found, None otherwise
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(
                 select(FileMetadata)
@@ -218,14 +387,48 @@ class DatabaseManager:
             error_msg += f"and file ID {file_id}: {e}"
             raise DatabaseError(error_msg) from e
 
-    async def get_chunks_by_file_id(self, db: AsyncSession, file_id: str) -> List[Chunk]:
+    async def get_chunks_by_file_id(
+        self,
+        db: AsyncSession,
+        file_id: str
+    ) -> List[Chunk]:
+        """
+        Get chunks by file ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_id (str): Unique identifier for the file
+
+        Returns:
+            List[Chunk]: List of chunk objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(select(Chunk).filter(Chunk.file_id == file_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get chunk by file ID {file_id}: {e}") from e
 
-    async def get_questions_by_chunk_id(self, db: AsyncSession, chunk_id: str):
+    async def get_questions_by_chunk_id(
+        self,
+        db: AsyncSession,
+        chunk_id: str
+    ) -> List[Question]:
+        """
+        Get questions by chunk ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            chunk_id (str): Unique identifier for the chunk
+
+        Returns:
+            List[Question]: List of question objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             query = select(Question).filter(Question.chunk_id == chunk_id)
             result = await db.execute(query)
@@ -233,14 +436,48 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get questions by chunk ID {chunk_id}: {e}") from e
 
-    async def get_questions_by_project_id(self, db: AsyncSession, project_id: str):
+    async def get_questions_by_project_id(
+        self,
+        db: AsyncSession,
+        project_id: str
+    ) -> List[Question]:
+        """
+        Get questions by project ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            project_id (str): Unique identifier for the project
+
+        Returns:
+            List[Question]: List of question objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(select(Question).filter(Question.project_id == project_id))
             return result.scalars().all()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get questions by project ID {project_id}: {e}") from e
 
-    async def delete_questions_by_chunk_id(self, db: AsyncSession, chunk_id: str):
+    async def delete_questions_by_chunk_id(
+        self,
+        db: AsyncSession,
+        chunk_id: str
+    ):
+        """
+        Delete questions by chunk ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            chunk_id (str): Unique identifier for the chunk
+
+        Returns:
+            int: Number of rows deleted
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(delete(Question).filter(Question.chunk_id == chunk_id))
             await db.commit()
@@ -252,26 +489,33 @@ class DatabaseManager:
     async def save_questions(
         self,
         db: AsyncSession,
-        project_id: str,
+        user_id: str,
+        file_id: str,
         questions: list,
         chunk_id: str
-    ):
+    ) -> int:
         """
-        保存问题到数据库
+        Save questions to the database.
+
+        Args:
+            db (AsyncSession): Database session object
+            project_id (str): Unique identifier for the project
+            questions (list): List of question data dictionaries
+            chunk_id (str): Unique identifier for the chunk
+
+        Returns:
+            int: Number of rows inserted
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
         """
         try:
-            # # 首先删除已存在的问题
-            # await db.execute(
-            #     delete(Question)
-            #     .where(Question.project_id == project_id, Question.chunk_id == chunk_id)
-            # )
-
-            # 然后插入新的问题
             new_questions = []
             for q_data in questions:
                 new_question = Question(
                     id=str(uuid.uuid4()),
-                    project_id=project_id,
+                    user_id=user_id,
+                    file_id=file_id,
                     chunk_id=chunk_id,
                     question=q_data['question'],
                     label=q_data.get('label', 'uncategorized')
@@ -289,17 +533,32 @@ class DatabaseManager:
         self,
         db: AsyncSession,
         chunks: list,
-        project_id: str,
+        user_id: str,
         file_id: str,
         file_name: str
-    ):
+    ) -> List[Chunk]:
+        """
+        Save chunks to the database.
+
+        Args:
+            db (AsyncSession): Database session object
+            chunks (list): List of chunk data dictionaries
+            project_id (str): Unique identifier for the project
+            file_id (str): Unique identifier for the file
+            file_name (str): Name of the file
+
+        Returns:
+            List[Chunk]: List of chunk objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
-            # 然后插入新的块
             new_chunks = []
             for chunk_data in chunks:
                 new_chunk = Chunk(
                     id=str(uuid.uuid4()),
-                    project_id=project_id,
+                    user_id=user_id,
                     file_id=file_id,
                     file_name=file_name,
                     content=chunk_data['content'],
@@ -316,7 +575,20 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to save chunks: {e}") from e
 
-    async def delete_file_metadata(self, db: AsyncSession, file_id: str):
+    async def delete_file_metadata(self, db: AsyncSession, file_id: str) -> int:
+        """
+        Delete file metadata by file ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_id (str): Unique identifier for the file
+
+        Returns:
+            int: Number of rows deleted
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(delete(FileMetadata).filter(FileMetadata.file_id == file_id))
             await db.commit()
@@ -325,21 +597,60 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to delete file metadata: {e}") from e
 
-    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: str):
+    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: str) -> Chunk:
+        """
+        Get chunk by chunk ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            chunk_id (str): Unique identifier for the chunk
+
+        Returns:
+            Chunk: Chunk object
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(select(Chunk).filter(Chunk.id == chunk_id))
             return result.scalars().first()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get chunk by ID {chunk_id}: {e}") from e
 
-    async def get_chunks_by_file_ids(self, db: AsyncSession, file_ids: list) -> list[Chunk]:
+    async def get_chunks_by_file_ids(self, db: AsyncSession, file_ids: list) -> List[Chunk]:
+        """
+        Get chunks by file IDs.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_ids (list): List of file ID strings
+
+        Returns:
+            list[Chunk]: List of chunk objects
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(select(Chunk).filter(Chunk.file_id.in_(file_ids)))
             return result.scalars().all()
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get chunks by file IDs {file_ids}: {e}") from e
 
-    async def delete_chunk_by_id(self, db: AsyncSession, chunk_id: str):
+    async def delete_chunk_by_id(self, db: AsyncSession, chunk_id: str) -> int:
+        """
+        Delete chunk by chunk ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            chunk_id (str): Unique identifier for the chunk
+
+        Returns:
+            int: Number of rows deleted
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(delete(Chunk).filter(Chunk.id == chunk_id))
             await db.commit()
@@ -348,7 +659,20 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to delete chunk by ID {chunk_id}: {e}") from e
 
-    async def delete_chunks_by_file_id(self, db: AsyncSession, file_id: str):
+    async def delete_chunks_by_file_id(self, db: AsyncSession, file_id: str) -> int:
+        """
+        Delete chunks by file ID.
+
+        Args:
+            db (AsyncSession): Database session object
+            file_id (str): Unique identifier for the file
+
+        Returns:
+            int: Number of rows deleted
+
+        Raises:
+            DatabaseError: If there's an error while querying the database
+        """
         try:
             result = await db.execute(delete(Chunk).filter(Chunk.file_id == file_id))
             await db.commit()

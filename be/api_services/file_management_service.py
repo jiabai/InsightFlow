@@ -30,7 +30,6 @@ from fastapi import APIRouter, Depends, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 
 from be.api_services.fastpai_logger import setup_logging
 from be.common.database_manager import DatabaseManager, FileMetadata, Chunk

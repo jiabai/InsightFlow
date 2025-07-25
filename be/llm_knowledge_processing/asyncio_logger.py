@@ -174,4 +174,4 @@ def get_logger():
         raise RuntimeError("Logger not initialized. Call setup_logger() first.")
     return async_logger.logger
 
-setup_logger()
+setup_logger(log_file='knowledge_processing.log', level=logging.DEBUG)

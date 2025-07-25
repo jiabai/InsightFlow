@@ -1,3 +1,16 @@
+"""
+Question Generator module for generating and labeling questions from text content.
+
+This module provides functionality to:
+- Generate questions from text chunks using LLM
+- Process and format the generated questions
+- Label questions with relevant tags
+- Handle question generation configuration and project settings
+
+The main class QuestionGenerator orchestrates the question generation pipeline
+by interfacing with LLM services and database operations.
+"""
+
 import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +26,19 @@ from be.llm_knowledge_processing.utils import (
 logger = logging.getLogger(__name__)
 
 class QuestionGenerator:
+    """
+    A class for generating and labeling questions from text content.
+
+    This class handles the question generation pipeline by:
+    - Generating questions from text using LLM
+    - Processing and formatting the generated questions
+    - Adding relevant labels/tags to questions
+    - Managing question generation configuration
+
+    Attributes:
+        llm_client: LLMClient instance for interacting with language models
+        db_manager: DatabaseManager instance for database operations
+    """
     def __init__(self, llm_config: dict, db_manager: DatabaseManager, is_mock: bool=True):
         self.llm_client = LLMClient(llm_config, is_mock)
         self.db_manager = db_manager
@@ -22,8 +48,20 @@ class QuestionGenerator:
         content: str,
         project_config: dict,
         project_details: dict,
-        tags: list
+        tags: list[dict[str, str]]
     ) -> list[dict[str, str]]:
+        """
+        Generate questions from text content and label them with tags.
+
+        Args:
+            content: Text content to generate questions from
+            project_config: Configuration settings for question generation
+            project_details: Project-specific details for question generation
+            tags: List of tags to label the generated questions
+
+        Returns:
+            List of dictionaries containing generated questions and their labels
+        """
         questions = self._generate_raw_questions(content, project_config, project_details)
         if not questions:
             return None
