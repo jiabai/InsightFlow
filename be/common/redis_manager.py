@@ -31,7 +31,7 @@ class RedisManager:
                     encoding='utf-8'
                 )
             response = await self.redis_client.ping()
-            if response != b'PONG':
+            if response is False:
                 raise RedisError("Failed to ping Redis server.")
         except aioredis.ConnectionClosedError as e:
             raise RedisError(f"Failed to connect to Redis: {e}") from e

@@ -1,0 +1,482 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FastAPI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/upload/{user_id}": {
+      "post": {
+        "summary": "Upload File",
+        "description": "Upload a file for a specific user.\n\nThis endpoint handles file upload by:\n1. Checking if file already exists using file_id\n2. Storing file content in object storage\n3. Saving file metadata to database\n4. Managing file status in Redis\n\nArgs:\n    user_id (str): ID of the user uploading the file\n    file (UploadFile): The file to be uploaded\n    db_mgr (AsyncSession): Database session for metadata operations\n    redis_mgr (RedisManager): Redis manager for status tracking\n    storage_mgr (StorageManager): Storage manager for file content\n\nReturns:\n    dict: A dictionary containing:\n        - file_id (str): Unique identifier for the file\n        - filename (str): Original name of the file\n        - size (int): File size in bytes\n        - type (str): File content type\n        - upload_time (str): ISO formatted upload timestamp\n        - stored_filename (str): Name used to store the file\n        - status (str): Upload status message\n\nRaises:\n    HTTPException: \n        - 500 if any storage, database or Redis operations fail\n        - 500 for unexpected errors during upload",
+        "operationId": "upload_file_upload__user_id__post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_file_upload__user_id__post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/": {
+      "get": {
+        "summary": "Get All Files",
+        "description": "Retrieve all files from the database.\n\nThis endpoint fetches metadata for all files stored in the system,\nregardless of user ownership.\n\nArgs:\n    db_mgr (AsyncSession): Database session dependency injection\n\nReturns:\n    List[FileMetadataResponse]: List of file metadata objects containing file details",
+        "operationId": "get_all_files_files__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FileMetadataResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get All Files Files  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{user_id}": {
+      "get": {
+        "summary": "Get Files By User",
+        "description": "Retrieve all files for a specific user with pagination support.\n\nThis endpoint fetches file metadata from the database for the given user_id,\nwith optional pagination parameters to limit the result set.\n\nArgs:\n    user_id (str): ID of the user whose files to retrieve\n    skip (int, optional): Number of records to skip. Defaults to 0.\n    limit (int, optional): Maximum number of records to return. Defaults to 100.\n    db_mgr (AsyncSession): Database session dependency injection\n\nReturns:\n    List[FileMetadataResponse]: List of file metadata objects containing file details\n\nRaises:\n    HTTPException: 404 if no files are found for the given user_id",
+        "operationId": "get_files_by_user_files__user_id__get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "skip",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Skip"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileMetadataResponse"
+                  },
+                  "title": "Response Get Files By User Files  User Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{user_id}/{file_id}": {
+      "get": {
+        "summary": "Get File By User And Fileid",
+        "description": "Retrieve file metadata for a specific user and file ID.\n\nThis endpoint fetches file metadata from the database for the \ngiven user_id and file_id combination.\n\nArgs:\n    user_id (str): ID of the user who owns the file\n    file_id (str): Unique identifier of the file to retrieve\n    db_mgr (AsyncSession): Database session dependency injection\n\nReturns:\n    FileMetadataResponse: File metadata object containing file details\n\nRaises:\n    HTTPException: 404 if no file is found for the given user_id and file_id",
+        "operationId": "get_file_by_user_and_fileid_files__user_id___file_id__get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileMetadataResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/delete/{user_id}/{file_id}": {
+      "delete": {
+        "summary": "Delete File",
+        "description": "Delete a file and its associated metadata for a specific user.\n\nThis endpoint performs the following operations:\n1. Verifies file exists for the given user\n2. Deletes the file from storage\n3. Removes file metadata from database\n4. Cleans up file status from Redis\n\nArgs:\n    user_id (str): ID of the user who owns the file\n    file_id (str): Unique identifier of the file to delete\n    db_mgr (AsyncSession): Database session for metadata operations\n    redis_mgr (RedisManager): Redis manager for status cleanup\n    storage_mgr (StorageManager): Storage manager for file deletion\n\nReturns:\n    dict: A message confirming successful deletion containing:\n        - message (str): Success message with filename\n\nRaises:\n    HTTPException: \n        - 404 if file not found\n        - 500 for internal server errors during deletion\n    FileNotFoundError: If file metadata not found\n    DatabaseError: If database operations fail\n    RedisError: If Redis operations fail",
+        "operationId": "delete_file_delete__user_id___file_id__delete",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/file_status/{file_id}": {
+      "get": {
+        "summary": "Redis File Status",
+        "description": "Get the processing status of a file from Redis.\n\nThis endpoint retrieves the current processing status of a file from Redis using its file_id.\nThe status indicates the current state of file processing \n(e.g., \"Pending\", \"Processing\", \"Completed\").\n\nArgs:\n    file_id (str): The unique identifier of the file to check status for\n    redis_mgr (RedisManager): Redis manager instance for accessing Redis storage\n\nReturns:\n    dict: A dictionary containing:\n        - file_id (str): The input file ID\n        - status (str): Current processing status of the file\n\nRaises:\n    HTTPException: 404 if no status is found for the given file_id",
+        "operationId": "redis_file_status_file_status__file_id__get",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/download/{user_id}/{file_id}": {
+      "get": {
+        "summary": "Download File",
+        "description": "Download a file for a specific user.\n\nThis endpoint retrieves file metadata from the database and streams the file content\nfrom storage for download. The file name is URL encoded to handle special characters.\n\nArgs:\n    user_id (str): ID of the user requesting the file\n    file_id (str): Unique identifier of the file to download\n    db_mgr (AsyncSession): Database session dependency injection\n\nReturns:\n    StreamingResponse: A streaming response containing:\n        - File content as a stream\n        - Content-Type header matching the file's type\n        - Content-Disposition header for download with encoded filename\n\nRaises:\n    HTTPException: 404 if the file is not found for the given user_id and file_id",
+        "operationId": "download_file_download__user_id___file_id__get",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/questions/{file_id}": {
+      "get": {
+        "summary": "Get Questions By File",
+        "description": "Retrieve all questions associated with a specific file.\n\nThis endpoint checks if file processing is completed via Redis status,\nthen fetches all chunks associated with the file and their corresponding questions\nfrom the database.\n\nArgs:\n    file_id (str): The unique identifier of the file\n    db_mgr (AsyncSession): Database session dependency injection\n\nReturns:\n    dict: A dictionary containing:\n        - file_id (str): The input file ID\n        - questions (List[dict]): List of question objects, each containing:\n            - question (str): The question text\n            - label (str): The question label/category\n            - chunk_id (int): ID of the chunk this question belongs to\n\nRaises:\n    HTTPException: \n        - 400 if file processing is not completed\n        - 404 if no chunks found for the file",
+        "operationId": "get_questions_by_file_questions__file_id__get",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_upload_file_upload__user_id__post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_file_upload__user_id__post"
+      },
+      "FileMetadataResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "user_id": {
+            "type": "string",
+            "title": "User Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "file_size": {
+            "type": "integer",
+            "title": "File Size"
+          },
+          "file_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Type"
+          },
+          "upload_time": {
+            "type": "string",
+            "title": "Upload Time"
+          },
+          "stored_filename": {
+            "type": "string",
+            "title": "Stored Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "file_id",
+          "user_id",
+          "filename",
+          "file_size",
+          "upload_time",
+          "stored_filename"
+        ],
+        "title": "FileMetadataResponse",
+        "description": "Pydantic model for file metadata response.\n\nThis model defines the structure of file metadata that is returned by the API endpoints.\nIt includes essential file information such as ID, name, size, type and timestamps.\n\nAttributes:\n    id (int): Database record ID\n    file_id (str): Unique file identifier\n    user_id (str): ID of the user who owns the file\n    filename (str): Original name of the file\n    file_size (int): Size of the file in bytes\n    file_type (Optional[str]): MIME type of the file\n    upload_time (str): ISO formatted timestamp of when the file is uploaded\n    stored_filename (str): Name under which the file is stored in the system"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

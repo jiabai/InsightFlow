@@ -1,9 +1,11 @@
 import requests
+import hashlib
 
 USER_ID = "userid_123"
+user_id = hashlib.sha256(USER_ID.encode()).hexdigest()
 SKIP = 0
 LIMIT = 10
-url_with_pagination = f"http://127.0.0.1:8000/files/{USER_ID}?skip={SKIP}&limit={LIMIT}"
+url_with_pagination = f"http://127.0.0.1:8000/files/{user_id}?skip={SKIP}&limit={LIMIT}"
 
 response = requests.get(url_with_pagination, timeout=10)
 

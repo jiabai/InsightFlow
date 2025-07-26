@@ -275,12 +275,14 @@ async def get_all_files(
 
         file_metadata_response: List[FileMetadataResponse] = [
             FileMetadataResponse(
-                file_id=file_metadata.file_id,
-                filename=file_metadata.filename,
-                size=file_metadata.file_size,
-                type=file_metadata.file_type,
-                upload_time=file_metadata.upload_time.isoformat(),
-                stored_filename=file_metadata.stored_filename,
+                id              = file_metadata.id,
+                file_id         = file_metadata.file_id,
+                user_id         = file_metadata.user_id,
+                filename        = file_metadata.filename,
+                file_size       = file_metadata.file_size,
+                file_type       = file_metadata.file_type,
+                upload_time     = file_metadata.upload_time.isoformat(),
+                stored_filename = file_metadata.stored_filename
             )
             for file_metadata in file_metadata_list
         ]
@@ -315,26 +317,28 @@ async def get_files_by_user(
         HTTPException: 404 if no files are found for the given user_id
     """
     try:
-        result: List[FileMetadata] = await db_manager.get_file_metadata_by_user_id(
+        results: List[FileMetadata] = await db_manager.get_file_metadata_by_user_id(
             db=db_mgr,
             user_id=user_id,
             skip=skip,
             limit=limit
         )
-        if not result:
+        if not results:
             raise DatabaseError(f"User {user_id} has no files")
-        logger.debug("Found %d files for user %s", len(result), user_id)
+        logger.debug("Found %d files for user %s", len(results), user_id)
 
         file_metadata_response: List[FileMetadataResponse] = [
             FileMetadataResponse(
-                file_id=file_metadata.file_id,
-                filename=file_metadata.filename,
-                size=file_metadata.file_size,
-                type=file_metadata.file_type,
-                upload_time=file_metadata.upload_time.isoformat(),
-                stored_filename=file_metadata.stored_filename,
+                id              = result.id,
+                file_id         = result.file_id,
+                user_id         = result.user_id,
+                filename        = result.filename,
+                file_size       = result.file_size,
+                file_type       = result.file_type,
+                upload_time     = result.upload_time.isoformat(),
+                stored_filename = result.stored_filename
             )
-            for file_metadata in result
+            for result in results
         ]
         return file_metadata_response
     except DatabaseError as e:
@@ -375,12 +379,14 @@ async def get_file_by_user_and_fileid(
         logger.debug("Found file metadata for file_id %s", file_id)
 
         file_metadata_response: FileMetadataResponse = FileMetadataResponse(
-            file_id=result.file_id,
-            filename=result.filename,
-            size=result.file_size,
-            type=result.file_type,
-            upload_time=result.upload_time.isoformat(),
-            stored_filename=result.stored_filename,
+            id              = result.id,
+            file_id         = result.file_id,
+            user_id         = result.user_id,
+            filename        = result.filename,
+            file_size       = result.file_size,
+            file_type       = result.file_type,
+            upload_time     = result.upload_time.isoformat(),
+            stored_filename = result.stored_filename
         )
         return file_metadata_response
     except DatabaseError as e:

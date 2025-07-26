@@ -117,6 +117,7 @@ class KnowledgeProcessingService:
                     move_processed_file(user_dir, file_path, file, self.config.completed_dir)
             except (IOError, OSError, asyncio.CancelledError, RuntimeError, ValueError) as e:
                 logger.error("Error during polling: %s", e, exc_info=True)
+                break
 
     async def process_file(self, file_path: str, stored_filename: str) -> bool:
         """

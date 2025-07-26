@@ -39,7 +39,7 @@ app.add_middleware(
 )
 
 # Setup logging
-logger = setup_logging(app, log_file='file_management.log', level=logging.DEBUG)
+logger = setup_logging(app, log_file='api_services_main.log', level=logging.DEBUG)
 
 # Initialize managers
 db_manager = DatabaseManager()
