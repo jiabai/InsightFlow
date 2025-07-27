@@ -15,7 +15,6 @@ and manage database operations in an async context.
 """
 
 import os
-import uuid
 from typing import List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
@@ -79,7 +78,7 @@ class Chunk(Base):
     """
     __tablename__ = 'chunks'
 
-    id = Column(String(255), primary_key=True)
+    id = Column(Integer, primary_key=True)
     user_id = Column(String(255))
     name = Column(String(255))
     file_id = Column(String(255), ForeignKey('file_metadata.file_id'), index=True)
@@ -112,7 +111,7 @@ class Question(Base):
     """
     __tablename__ = 'questions'
 
-    id = Column(String(255), primary_key=True)
+    id = Column(Integer, primary_key=True)
     file_id = Column(String(255), ForeignKey('file_metadata.file_id'), index=True)
     user_id = Column(String(255))
     chunk_id = Column(String(255), ForeignKey('chunks.id'))
@@ -513,7 +512,6 @@ class DatabaseManager:
             new_questions = []
             for q_data in questions:
                 new_question = Question(
-                    id=str(uuid.uuid4()),
                     user_id=user_id,
                     file_id=file_id,
                     chunk_id=chunk_id,
@@ -557,7 +555,6 @@ class DatabaseManager:
             new_chunks = []
             for chunk_data in chunks:
                 new_chunk = Chunk(
-                    id=str(uuid.uuid4()),
                     user_id=user_id,
                     file_id=file_id,
                     file_name=file_name,
