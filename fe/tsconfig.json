@@ -1,0 +1,14 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "types": ["vue", "node"],
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["./*"]  // 将@映射到项目根目录
+    }
+  },
+  "include": [
+    "./**/*",
+    "vue-shim.d.ts"
+  ]
+}
