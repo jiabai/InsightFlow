@@ -91,13 +91,12 @@ class AsyncLogger:
 
         handler.setFormatter(formatter)
         handler.setLevel(level)
-
-        console_handler = logging.StreamHandler()
-        console_handler.setFormatter(formatter)
-        console_handler.setLevel(level)
-
         self.logger.addHandler(handler)
-        self.logger.addHandler(console_handler)
+
+        # console_handler = logging.StreamHandler()
+        # console_handler.setFormatter(formatter)
+        # console_handler.setLevel(level)
+        # self.logger.addHandler(console_handler)
 
     @property
     def logger(self):

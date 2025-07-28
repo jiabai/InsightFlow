@@ -90,10 +90,10 @@ def setup_logging(app: FastAPI, log_file='app.log', level=logging.INFO,
     logger.addHandler(file_handler)
 
     # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    console_handler.setLevel(level)
-    logger.addHandler(console_handler)
+    # console_handler = logging.StreamHandler()
+    # console_handler.setFormatter(formatter)
+    # console_handler.setLevel(level)
+    # logger.addHandler(console_handler)
 
     if app:
         @app.middleware("http")
