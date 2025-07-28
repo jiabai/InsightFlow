@@ -153,8 +153,11 @@ pip install -r be/requirements.txt
 # 运行测试
 pytest be/tests/
 
+# 启动API服务
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker be.api_services.api_services_main:app --bind 0.0.0.0:8000 --daemon
+
 # 启动知识处理服务
-python be/llm_knowledge_processing/knowledge_processing_service.py
+python -m be.llm_knowledge_processing.knowledge_processing_main
 ```
 
 ### 调试技巧
@@ -166,14 +169,14 @@ python be/llm_knowledge_processing/knowledge_processing_service.py
 ## API接口
 
 ### 文件管理API
-- `POST /upload` - 上传Markdown文件
-- `GET /files/{file_id}` - 获取文件信息
-- `DELETE /files/{file_id}` - 删除文件
-- `GET /status/{file_id}` - 获取处理状态
+- `POST /upload/{user_id}` - 上传Markdown文件
+- `GET /files/{user_id}/{file_id}` - 获取文件信息
+- `DELETE /files/{user_id}/{file_id}` - 删除文件
+- `GET /file_status/{file_id}` - 获取处理状态
 
 ### 问题生成API
-- `GET /questions/{project_id}` - 获取生成的问题
-- `POST /questions/generate` - 手动触发问题生成
+- `GET /questions/{file_id}` - 获取生成的问题
+- `POST /questions/generate/{file_id}` - 手动触发问题生成
 
 ## 注意事项
 
