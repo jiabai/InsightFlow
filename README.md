@@ -49,7 +49,7 @@ InsightFlow是一个Chrome浏览器扩展，旨在通过生成启发式问题和
 
 1.  **环境配置**: 确保Python环境已安装，并设置好MySQL和Redis服务。
 2.  **安装依赖**: `pip install -r requirements.txt`。
-3.  **运行服务**: `python be/llm_knowledge_processing/knowledge_processing_service.py`
+3.  **运行服务**: `gunicorn -w 4 -k uvicorn.workers.UvicornWorker be.api_services.api_services_main:app --bind 0.0.0.0:8000 --daemon`
 
 ### 前端扩展
 
