@@ -15,6 +15,7 @@ and manage database operations in an async context.
 """
 
 import os
+import uuid
 from typing import List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
