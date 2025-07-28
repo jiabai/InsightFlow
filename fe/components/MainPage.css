@@ -1,0 +1,270 @@
+body {
+  background: #222;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin: 0;
+  min-width: 650px;
+  min-height: 650px;
+}
+.container {
+  margin: 30px auto;
+  width: 90%;
+  background: #181818;
+  border-radius: 16px;
+  box-shadow: 0 4px 24px #0008;
+  padding: 24px 20px 20px 20px;
+}
+.header {
+  font-size: 1.7em;
+  font-weight: bold;
+  margin-bottom: 18px;
+  text-align: center;
+  letter-spacing: 2px;
+}
+.btn-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px; /* 缩小按钮间距 */
+  margin-bottom: 20px;
+  padding: 10px;
+}
+
+.circle-btn {
+  width: 56px; /* 增大按钮尺寸 */
+  height: 56px; /* 增大按钮尺寸 */
+  border-radius: 50%;
+  border: none;
+  font-size: 24px; /* 调整图标大小 */
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 绿色按钮样式 */
+.circle-btn.green {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+}
+
+.circle-btn.green:hover::before {
+  content: "自动生成问题";
+  position: absolute;
+  left: 50%;
+  bottom: 110%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-size: 0.4em;
+  z-index: 10;
+}
+.circle-btn.red {
+  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); /* 调整渐变颜色 */
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); /* 增强阴影效果 */
+  margin-right: 0; /* 移除右侧额外间距 */
+}
+
+.circle-btn.red:hover {
+  transform: scale(1.05); /* 轻微放大效果 */
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.5);
+}
+
+/* 移除原有hover文字提示（如需保留可忽略此段） */
+.circle-btn.red:hover::before {
+  content: "退出沉浸阅读模式";
+  position: absolute;
+  left: 50%;
+  bottom: 110%;
+  transform: translateX(-50%);
+  background: #333;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  white-space: nowrap;
+  font-size: 0.4em;
+  z-index: 10;
+}
+.skeleton-list {
+  margin-top: 30px;
+}
+.skeleton-item {
+  height: 32px;
+  background: linear-gradient(90deg, #222 25%, #333 50%, #222 75%);
+  background-size: 200% 100%;
+  animation: skeleton 1.2s infinite linear;
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+@keyframes skeleton {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: #333;
+  border-radius: 8px;
+  margin: 24px 0 18px 0;
+  overflow: hidden;
+  /* 移除 display: none !important; */
+}
+.progress-inner {
+  height: 100%;
+  background: linear-gradient(90deg, #2196f3, #0ea5e9 100%);
+  width: 0;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 8px;
+}
+.question-list {
+  margin-top: 24px;
+}
+.question-item {
+  background: #232323;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+.question-item:hover {
+  background: #2a2a2a;
+}
+.question-title {
+  font-size: 1.1em;
+  font-weight: 500;
+  letter-spacing: 1px;
+}
+
+.question-detail {
+  margin-top: 12px;
+  font-size: 1em;
+  line-height: 1.7;
+  color: #fff;
+  min-height: 24px;
+  border-left: 3px solid #fff;
+  padding-left: 12px;
+  overflow: hidden;
+  white-space: nowrap; /* 临时单行显示以实现打字效果 */
+  width: 0;
+  animation: printText 3s steps(60, end) forwards; /* 调整步数和时间 */
+  padding-right: 10px; /* 右侧预留空间避免文本紧贴边框 */
+}
+.answer-content {
+    background-color: #181818;
+    color: #e0e0e0;
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 8px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    min-height: 60px;
+    max-height: none;
+    overflow: visible;
+    position: relative; /* 添加相对定位确保加载指示器正确定位 */
+}
+
+/* 删除原有的.progress-container.mini线性进度条样式 */
+/*
+.progress-container.mini {
+    height: 6px;
+    margin: 8px 0;
+}
+*/
+
+/* 添加圆形加载指示器样式 */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0;
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff;
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 10px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 0;
+  }
+
+@keyframes printText {
+  from { width: 0; }
+  to { width: 100%; } /* 从左到右扩展到 full width */
+}
+
+/* 箭头容器样式 */
+.news-item .arrow {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid #333;
+    transition: transform 0.3s ease;
+    cursor: pointer;
+}
+
+/* 旋转状态样式 */
+.news-item .arrow.rotate {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+/* 新闻项容器样式调整 */
+.news-item {
+    position: relative;
+    padding-right: 40px; /* 为箭头留出空间 */
+    cursor: pointer;
+}
+
+/* 保留并优化.question-item箭头样式 */
+.question-item .arrow {
+    position: absolute;
+    right: 18px; /* 与容器内边距对齐 */
+    top: 12px; /* 标题行垂直居中 */
+    width: 8px;
+    height: 8px;
+    border: solid #888; /* 使用浅灰色提高可见度 */
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg); /* 初始向下箭头 */
+    transition: transform 0.3s ease-in-out, border-color 0.2s;
+    cursor: pointer;
+}
+
+.question-item:hover .arrow {
+    border-color: #fff; /*  hover时变白 */
+}
+
+/* 旋转状态（180度翻转） */
+.question-item .arrow.rotate {
+    transform: rotate(225deg); /* 45deg + 180deg = 225deg */
+}
+
+.question-item {
+  cursor: pointer;
+  padding: 12px 16px;
+  /* 保留其他现有样式 */
+}
