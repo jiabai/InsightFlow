@@ -13,21 +13,14 @@ microservice. It includes:
 The service exposes REST endpoints for file management operations 
 through the file_management_router.
 """
-
-import logging
 import uvicorn
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from be.api_services.fastpai_logger import setup_logging
-from be.common.database_manager import DatabaseManager
-from be.common.redis_manager import RedisManager
-from be.common.storage_manager import StorageManager
+from be.api_services import shared_resources
+from be.api_services.shared_resources import get_logger, app
+from be.api_services.file_routes import router as file_router
 
-from be.api_services.file_management_service import router as file_management_router
-
-# Initialize FastAPI app
-app = FastAPI()
+logger = get_logger()
 
 # Add CORS middleware
 app.add_middleware(
@@ -38,32 +31,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Setup logging
-logger = setup_logging(app, log_file='api_services_main.log', level=logging.DEBUG)
+@app.on_event("startup")
+async def startup():
+    """
+    Startup event handler that initializes shared resources.
 
-# Initialize managers
-db_manager = DatabaseManager()
-redis_manager = RedisManager()
-storage_manager = StorageManager()
+    This function is called when the FastAPI application starts up.
+    It ensures that the necessary resources (database, Redis, storage)
+    are initialized before the application handles any requests.
+    """
+    await shared_resources.init_resources()
+    logger.info("startup event handler.")
 
 @app.on_event("shutdown")
 async def shutdown():
     """
     Shutdown event handler that performs cleanup operations.
-    
+
     This function is called when the FastAPI application shuts down.
     It ensures proper cleanup by:
     - Disposing the database engine connection pool
     - Closing the Redis client connection and waiting for it to complete
     """
-    if db_manager.engine:
-        await db_manager.engine.dispose()
-    if redis_manager.redis_client:
-        await redis_manager.redis_client.close()
-        await redis_manager.redis_client.wait_closed()
+    await shared_resources.close_resources()
+    logger.info("shutdown event handler.")
 
-# Include the router from file_management_service.py
-app.include_router(file_management_router)
+# # Include the router from file_management_service.py
+app.include_router(file_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,11 +1,6 @@
 import re
 import random
 import json
-import logging
-from sqlalchemy.ext.asyncio import AsyncSession
-from be.common.database_manager import Chunk
-from be.common.logger_config import setup_logging
-from be.common.database_manager import DatabaseManager
 
 def extract_json_from_llm_output(output):
     """

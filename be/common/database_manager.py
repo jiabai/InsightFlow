@@ -114,7 +114,7 @@ class Question(Base):
     id = Column(Integer, primary_key=True)
     file_id = Column(String(255), ForeignKey('file_metadata.file_id'), index=True)
     user_id = Column(String(255))
-    chunk_id = Column(String(255), ForeignKey('chunks.id'))
+    chunk_id = Column(Integer, ForeignKey('chunks.id'))
     question = Column(Text)
     label = Column(String(255))
     answered = Column(Boolean, default=False)
@@ -138,6 +138,7 @@ class DatabaseManager:
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         await self.engine.dispose()
+        self._tables_created = True
 
     def __init__(self):
         self.database_name = os.getenv("DB_NAME", "insight_flow")
@@ -147,11 +148,14 @@ class DatabaseManager:
         )
         self.engine = None
         self.async_session = None
+        self._tables_created = False
 
     async def initialize(self):
         """
         Initialize the database engine and session factory.
         """
+        if self.engine:
+            return
         try:
             self.engine = create_async_engine(self.database_url, echo=False)
             self.async_session = async_sessionmaker(
@@ -166,6 +170,8 @@ class DatabaseManager:
         """
         Initialize the database by creating all tables.
         """
+        if self._tables_created:
+            return
         try:
             await self._create_all_tables()
         except SQLAlchemyError as e:

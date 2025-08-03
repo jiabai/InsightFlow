@@ -1,7 +1,8 @@
 import requests
 
-FILE_ID = "7f8458b670fb5467157a1696457d48e7041d27cc9209278c060c5b5b37fa55bb"
-url_file_id = f"http://127.0.0.1:8000/file_status/{FILE_ID}"
+FILE_ID = "d7521ddcdff89b8b5608827fc0d9592a6f02a72ea616ee082afef458359bab62"
+# url_file_id = f"http://192.168.31.233:8000/file_status/{FILE_ID}"
+url_file_id = f"http://39.107.59.41:18080/file_status/{FILE_ID}"
 
 response = requests.get(url_file_id, timeout=10)
 if response.status_code == 200:
