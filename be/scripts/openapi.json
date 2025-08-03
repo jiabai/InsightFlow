@@ -321,6 +321,53 @@
         }
       }
     },
+    "/questions/generate/{user_id}/{file_id}": {
+      "post": {
+        "summary": "Generate Questions",
+        "description": "Generate questions for a specific file asynchronously.\n\nThis endpoint initiates asynchronous question generation for a file by:\n1. Creating a KnowledgeProcessingService instance\n2. Running the service as a background task\n3. Adding task to background tasks set for tracking\n\nArgs:\n    user_id (str): ID of the user who owns the file\n    file_id (str): Unique identifier of the file to generate questions for\n\nReturns:\n    dict: A dictionary containing:\n        - message (str): Confirmation message with file_id\n\nNote:\n    The actual question generation happens asynchronously in the background.\n    Use the /questions/{file_id} endpoint to retrieve generated questions.",
+        "operationId": "generate_questions_questions_generate__user_id___file_id__post",
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/questions/{file_id}": {
       "get": {
         "summary": "Get Questions By File",
