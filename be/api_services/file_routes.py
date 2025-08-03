@@ -37,7 +37,7 @@ from be.api_services.shared_resources import (
 )
 
 logger = get_logger()
-
+running_services = set()
 # Create an APIRouter instance
 router = APIRouter()
 
@@ -514,11 +514,12 @@ async def run_service(service: KnowledgeProcessingService):
         Any exceptions raised by the service's run or shutdown methods
     """
     try:
+        running_services.add(service.file_id)
         await service.run()
     finally:
+        running_services.discard(service.file_id)
+        logger.info("Job %s has finished running.", service.file_id)
         await service.shutdown()
-
-running_services = set()
 
 @router.post("/questions/generate/{user_id}/{file_id}")
 async def generate_questions(
@@ -547,11 +548,12 @@ async def generate_questions(
     """
     service = KnowledgeProcessingService(file_id)
     if file_id not in running_services:
-        running_services.add(file_id)
         task = asyncio.create_task(run_service(service))
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
-    return {"message": f"Started processing for file_id: {file_id}"}
+        return {"message": f"Started processing for file_id: {file_id}"}
+    else:
+        return {"message": f"Processing already started for file_id: {file_id}"}
 
 @router.get("/questions/{file_id}")
 async def get_questions_by_file(
