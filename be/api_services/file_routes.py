@@ -439,7 +439,10 @@ async def redis_file_status(
         return {"file_id": file_id, "status": status}
     except RedisError as e:
         logger.error("Failed to get file status from Redis: %s", str(e))
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal server error - Failed to get file status from Redis"
+        ) from e
 
 @router.get("/download/{user_id}/{file_id}")
 async def download_file(
