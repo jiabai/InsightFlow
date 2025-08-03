@@ -7,7 +7,7 @@ import asyncio
 from be.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
 
 if __name__ == "__main__":
-    service = KnowledgeProcessingService()
+    service = KnowledgeProcessingService(file_id="123")
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(service.run())

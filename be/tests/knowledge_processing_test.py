@@ -2,7 +2,6 @@ import os
 from nanoid import generate
 
 from be.common.database_manager import DatabaseManager, Chunk
-from be.llm_knowledge_processing.utils import generate_questions_for_chunk
 from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
 
 TEST_FILE = 'README.md'

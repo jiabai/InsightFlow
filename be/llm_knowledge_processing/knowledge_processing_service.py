@@ -12,13 +12,12 @@ It includes the KnowledgeProcessingService class which handles:
 The module is part of the insight-flow backend system and works with markdown files
 to generate structured knowledge and questions.
 """
-
 import os
 import time
 import shutil
 import asyncio
-from be.common.redis_manager import RedisManager
-from be.common.database_manager import DatabaseManager, Chunk
+from be.common.database_manager import Chunk
+from be.api_services.shared_resources import db_manager, redis_manager
 from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
 from be.llm_knowledge_processing.question_generator import QuestionGenerator
 from be.llm_knowledge_processing.config_manager import ConfigManager
@@ -37,12 +36,13 @@ class KnowledgeProcessingService:
     - Managing file status through Redis
     - Storing generated questions in database
     """
-    def __init__(self):
+    def __init__(self, file_id: str):
         # 初始化配置
         self.config = ConfigManager()
         # 初始化组件
-        self.db_manager = DatabaseManager()
-        self.redis_manager = RedisManager()
+        self.db_manager = db_manager
+        self.redis_manager = redis_manager
+        self.file_id = file_id
 
     @with_task_id
     async def run(self):
@@ -100,24 +100,22 @@ class KnowledgeProcessingService:
         Any errors encountered during polling are logged but don't stop the service.
         """
         logger.info("Knowledge processing service started, polling upload directory...")
-        while True:
-            try:
-                # Get all markdown files in upload directory
-                files_to_process = get_markdown_files_from_upload_dir(self.config.upload_dir)
-                if not files_to_process:
-                    time.sleep(5)
-                    continue
-                logger.debug("Found %s new files to process.", len(files_to_process))
+        try:
+            # Get all markdown files in upload directory
+            files_to_process = get_markdown_files_from_upload_dir(self.config.upload_dir)
+            if not files_to_process:
+                time.sleep(5)
+                raise ValueError("No files to process")
+            logger.debug("Found %s new files to process.", len(files_to_process))
 
-                for file_path, file, user_dir in files_to_process:
-                    logger.debug("Processing file '%s'", file)
-                    await self.process_file(file_path, file)
-                    # 移动文件到 'completed' 目录
-                    logger.debug("Moving file '%s' to completed directory.", file)
-                    move_processed_file(user_dir, file_path, file, self.config.completed_dir)
-            except (IOError, OSError, asyncio.CancelledError, RuntimeError, ValueError) as e:
-                logger.error("Error during polling: %s", e, exc_info=True)
-                break
+            for file_path, file, user_dir in files_to_process:
+                logger.debug("Processing file '%s'", file)
+                await self.process_file(file_path, file)
+                # 移动文件到 'completed' 目录
+                logger.debug("Moving file '%s' to completed directory.", file)
+                move_processed_file(user_dir, file_path, file, self.config.completed_dir)
+        except (IOError, OSError, asyncio.CancelledError, RuntimeError, ValueError) as e:
+            logger.error("Error during polling: %s", e, exc_info=True)
 
     async def process_file(self, file_path: str, stored_filename: str) -> bool:
         """

@@ -4,8 +4,9 @@ import requests
 
 user_id = "userid_123"
 user_id = hashlib.sha256(user_id.encode()).hexdigest()
-url = f"http://192.168.31.233:8000/upload/{user_id}"
-file_path = os.path.join("D:", "VSCode", "notes", "Effectiveness of Advertising Campaigns on Short-Form Video Social Platforms.md")  # 要上传的文件路径
+url = f"http://127.0.0.1:8000/upload/{user_id}"
+file_path = os.path.join("D:\\", "VSCode", "notes", "Effectiveness of Advertising Campaigns on Short-Form Video Social Platforms.md")
+print(file_path)
 
 with open(file_path, "rb") as f:
     import os
