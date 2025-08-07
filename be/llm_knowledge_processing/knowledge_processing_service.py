@@ -36,13 +36,15 @@ class KnowledgeProcessingService:
     - Managing file status through Redis
     - Storing generated questions in database
     """
-    def __init__(self, file_id: str):
+    def __init__(self, user_id: str, file_id: str):
+
         # 初始化配置
         self.config = ConfigManager()
         # 初始化组件
         self.db_manager = db_manager
         self.redis_manager = redis_manager
         self.file_id = file_id
+        self.user_id = user_id
 
     @with_task_id
     async def run(self):
@@ -99,23 +101,40 @@ class KnowledgeProcessingService:
         The polling continues indefinitely until the service is stopped.
         Any errors encountered during polling are logged but don't stop the service.
         """
-        logger.info("Knowledge processing service started, polling upload directory...")
-        try:
-            # Get all markdown files in upload directory
-            files_to_process = get_markdown_files_from_upload_dir(self.config.upload_dir)
-            if not files_to_process:
-                time.sleep(5)
-                raise ValueError("No files to process")
-            logger.debug("Found %s new files to process.", len(files_to_process))
 
-            for file_path, file, user_dir in files_to_process:
-                logger.debug("Processing file '%s'", file)
-                await self.process_file(file_path, file)
-                # 移动文件到 'completed' 目录
-                logger.debug("Moving file '%s' to completed directory.", file)
-                move_processed_file(user_dir, file_path, file, self.config.completed_dir)
-        except (IOError, OSError, asyncio.CancelledError, RuntimeError, ValueError) as e:
-            logger.error("Error during polling: %s", e, exc_info=True)
+        logger.info("Knowledge processing service started, polling upload directory...")
+        async with self.db_manager.get_db() as db:
+            file_metadata = await self.db_manager.get_file_metadata_by_file_id(db, self.file_id)
+            if file_metadata is None:
+                logger.error("File metadata not found for file ID: %s", self.file_id)
+                return
+            try:
+                # Get all markdown files in upload directory
+                files_to_process = get_markdown_files_from_upload_dir(
+                    self.config.upload_dir,
+                    self.user_id,
+                    file_metadata.stored_filename
+                )
+                if not files_to_process:
+                    time.sleep(5)
+                    raise ValueError("No files to process")
+                logger.debug("found file_path %s", files_to_process[0][0])
+                logger.debug("file_id %s", files_to_process[0][1])
+                logger.debug("user_id %s", files_to_process[0][2])
+
+                for current_file_path, current_file_id, current_user_id in files_to_process:
+                    logger.debug("Processing file '%s'", current_file_id)
+                    await self.process_file(current_file_path, current_file_id)
+                    # 移动文件到 'completed' 目录
+                    logger.debug("Moving file '%s' to completed directory.", current_file_id)
+                    move_processed_file(
+                        current_user_id,
+                        current_file_path,
+                        current_file_id,
+                        self.config.completed_dir
+                    )
+            except (IOError, OSError, asyncio.CancelledError, RuntimeError, ValueError) as e:
+                logger.error("Error during polling: %s", e, exc_info=True)
 
     async def process_file(self, file_path: str, stored_filename: str) -> bool:
         """
@@ -303,47 +322,40 @@ def parse_stored_filename(stored_filename: str):
         # Handle cases where the format might not match, or raise an error
         raise ValueError("Invalid stored_filename format")
 
-def get_markdown_files_from_upload_dir(upload_dir):
+def get_markdown_files_from_upload_dir(upload_dir: str, user_id: str, file_id: str) -> list:
     """
-    Scans the upload directory for markdown files within user subdirectories.
+    Scans the upload directory for a specific markdown file within a user subdirectory.
 
     Args:
         upload_dir (str): Path to the upload directory to scan
+        user_id (str): The user ID to look for
+        file_id (str): The file ID to look for
 
     Returns:
         list: List of tuples (file_path, filename, user_directory) for each markdown
         file found
 
-    The function scans user subdirectories in the upload directory and 
-    looks for .md files.
-    Each file found is returned as a tuple containing its full path, filename, and 
+    The function scans the user subdirectory in the upload directory and 
+    looks for the specified file.
+    If found, it returns a tuple containing the full path, filename, and 
     parent user directory name.
     """
-    def is_entries_valid(entries):
-        if not any(True for _ in entries):
-            time.sleep(5)
-            return False
-        return True
-
     files_to_process = []
-    with os.scandir(upload_dir) as entries:
-        entries_list = list(entries)
-        if not is_entries_valid(entries_list):
-            entries.close()
-            return files_to_process
-        for entry in entries_list:
-            if entry.is_dir():
-                user_dir = entry.name
-                user_path = os.path.join(upload_dir, user_dir)
-                # Process files in user directory
-                files = os.listdir(user_path)
-                if not files:
-                    continue
-                for file in files:
-                    if file.endswith('.md'):
-                        file_path = os.path.join(user_path, file)
-                        if os.path.isfile(file_path):
-                            files_to_process.append((file_path, file, user_dir))
+
+    # 构建用户目录路径
+    user_path = os.path.join(upload_dir, user_id)
+
+    # 检查用户目录是否存在
+    if not os.path.exists(user_path) or not os.path.isdir(user_path):
+        return files_to_process
+
+    # 构建文件完整路径
+    file_path = os.path.join(user_path, file_id)
+
+    # 检查文件是否存在
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        files_to_process.append((file_path, file_id, user_id))
+
     return files_to_process
 
 def move_processed_file(user_dir, file_path, file, completed_dir):
