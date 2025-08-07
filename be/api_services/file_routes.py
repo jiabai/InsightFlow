@@ -13,6 +13,7 @@ a complete file management system with async processing capabilities.
 
 import hashlib
 import asyncio
+import re
 from datetime import datetime
 from typing import List
 from urllib.parse import quote
@@ -33,6 +34,7 @@ from be.api_services.shared_resources import (
     redis_manager,
     storage_manager,
     background_tasks,
+    MAX_CONCURRENT_TASKS,
     get_logger
 )
 
@@ -142,6 +144,7 @@ async def upload_file(
         await redis_mgr.set_file_status(file_id, "Pending")
 
         file_content = await file.read()
+        file_content = filter_html_links(file_content)
         logger.debug("stored_filename: %s, user_id: %s", stored_filename, user_id)
         logger.debug("file_content size: %s", len(file_content))
 
@@ -518,6 +521,7 @@ async def run_service(service: KnowledgeProcessingService):
     """
     try:
         running_services.add(service.file_id)
+        logger.info("Job %s has started running.", service.file_id)
         await service.run()
     finally:
         running_services.discard(service.file_id)
@@ -549,12 +553,16 @@ async def generate_questions(
         The actual question generation happens asynchronously in the background.
         Use the /questions/{file_id} endpoint to retrieve generated questions.
     """
-    service = KnowledgeProcessingService(file_id)
+    service = KnowledgeProcessingService(user_id, file_id)
+
     if file_id not in running_services:
-        task = asyncio.create_task(run_service(service))
-        background_tasks.add(task)
-        task.add_done_callback(background_tasks.discard)
-        return {"message": f"Started processing for file_id: {file_id}"}
+        if len(background_tasks) < MAX_CONCURRENT_TASKS:
+            task = asyncio.create_task(run_service(service))
+            background_tasks.add(task)
+            task.add_done_callback(background_tasks.discard)
+            return {"message": f"Started processing for file_id: {file_id}"}
+        else:
+            return {"message": f"Max concurrent tasks reached, processing for file_id: {file_id}"}
     else:
         return {"message": f"Processing already started for file_id: {file_id}"}
 
@@ -619,3 +627,50 @@ async def get_questions_by_file(
     except RedisError as e:
         logger.error("Failed to get file status from Redis: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e
+
+def filter_html_links(content: bytes) -> bytes:
+    """
+    Filter out HTML links and URLs from byte content.
+
+    This function removes various types of HTML links including:
+    - <a> tags with href attributes
+    - <link> tags with href attributes  
+    - Direct HTTP/HTTPS URLs
+    - www. prefixed URLs
+
+    Args:
+        content (bytes): The input content as bytes containing HTML/text to filter
+
+    Returns:
+        bytes: The filtered content with links removed, encoded as UTF-8 bytes
+
+    Note:
+        If any error occurs during filtering, the original content is returned unchanged
+        and a warning is logged.
+    """
+    try:
+        # 将字节内容转换为字符串
+        text_content = content.decode('utf-8', errors='ignore')
+
+        # 过滤HTML链接的正则表达式模式
+        patterns = [
+            r'<a\s+[^>]*href\s*=\s*["\'][^"\'>]*["\'][^>]*>.*?</a>',  # <a href="...">...</a>
+            r'<link\s+[^>]*href\s*=\s*["\'][^"\'>]*["\'][^>]*/?>', # <link href="...">
+            r'https?://[^\s<>"\'{|}|\\^`\[\]]+',  # 直接的HTTP/HTTPS链接
+            r'www\.[^\s<>"\'{|}|\\^`\[\]]+',  # www开头的链接
+        ]
+
+        # 逐个应用过滤模式
+        for pattern in patterns:
+            text_content = re.sub(pattern, '', text_content, flags=re.IGNORECASE | re.DOTALL)
+
+        # 清理多余的空白字符
+        text_content = re.sub(r'\n\s*\n', '\n\n', text_content)  # 合并多个空行
+        text_content = re.sub(r'[ \t]+', ' ', text_content)  # 合并多个空格
+
+        # 转换回字节格式
+        return text_content.encode('utf-8')
+
+    except (ValueError, AttributeError, TypeError) as e:
+        logger.warning("Error filtering HTML links: %s, returning original content", e)
+        return content

@@ -150,19 +150,13 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 安装依赖
 pip install -r be/requirements.txt
 
-# 运行测试
-pytest be/tests/
-
 # 启动API服务
 gunicorn -w 4 -k uvicorn.workers.UvicornWorker be.api_services.api_services_main:app --bind 0.0.0.0:8000 --daemon
-
-# 启动知识处理服务
-python -m be.llm_knowledge_processing.knowledge_processing_main
 ```
 
 ### 调试技巧
 - 使用Chrome开发者工具调试扩展
-- 查看 `be/logs/app.log` 获取后端日志
+- 查看 `be/logs` 获取后端日志
 - 使用Redis CLI监控缓存状态
 - 通过MySQL客户端检查数据存储
 
@@ -175,8 +169,8 @@ python -m be.llm_knowledge_processing.knowledge_processing_main
 - `GET /file_status/{file_id}` - 获取处理状态
 
 ### 问题生成API
-- `GET /questions/{file_id}` - 获取生成的问题
-- `POST /questions/generate/{file_id}` - 手动触发问题生成
+- `GET /questions/{user_id}/{file_id}` - 获取生成的问题
+- `POST /questions/generate/{user_id}/{file_id}` - 手动触发问题生成
 
 ## 注意事项
 
@@ -199,3 +193,12 @@ python -m be.llm_knowledge_processing.knowledge_processing_main
 ## 许可证
 
 本项目采用 ISC 许可证，详见 [LICENSE](LICENSE) 文件。
+
+## TODO
+
+- [x] 上传文件验证是否为markdown文档
+- [&#10003;] MD文档中过滤掉带图片链接
+- [x] 支持用户注册与身份验证
+- [x] 联网搜索功能
+- [x] 知识库功能
+- [x] 内网穿透式部署
