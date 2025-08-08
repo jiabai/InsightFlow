@@ -1,4 +1,6 @@
 import logging
+import asyncio
+
 from be.llm_knowledge_processing.llm_config_manager import LLMConfigManager
 
 logger = logging.getLogger(__name__)
@@ -48,6 +50,29 @@ class LLMClient:
                         "content": prompt
                     }
                 ],
+                model=self.model,
+                stream=stream,
+                **kwargs
+            )
+            if stream:
+                return chat_completion
+            else:
+                return chat_completion.choices[0].message.content
+        except Exception as e:
+            logger.error("An error occurred: %s", e, exc_info=True)
+            return None
+
+    async def get_response_async(self, prompt, stream=False, **kwargs):
+        """异步版本的get_response方法"""
+        if self.is_mock:
+            await asyncio.sleep(0.1)  # 模拟异步延迟
+            return "This is a mock response for: " + prompt
+
+        try:
+            # 使用asyncio.to_thread将同步调用转为异步
+            chat_completion = await asyncio.to_thread(
+                self.client.chat.completions.create,
+                messages=[{"role": "user", "content": prompt}],
                 model=self.model,
                 stream=stream,
                 **kwargs

@@ -62,7 +62,7 @@ class QuestionGenerator:
         Returns:
             List of dictionaries containing generated questions and their labels
         """
-        questions = self._generate_raw_questions(content, project_config, project_details)
+        questions = await self._generate_raw_questions(content, project_config, project_details)
         if not questions:
             return None
 
@@ -83,7 +83,7 @@ class QuestionGenerator:
         chunk = await self.db_manager.get_chunk_by_id(db, chunk_id)
         return chunk.content if chunk else None
 
-    def _generate_raw_questions(self, content, project_config, project_details):
+    async def _generate_raw_questions(self, content, project_config, project_details):
         question_gen_length = project_config.get('questionGenerationLength', 500)
         number_of_questions = max(1, int(len(content) / question_gen_length))
         logger.debug(
@@ -99,7 +99,7 @@ class QuestionGenerator:
             global_prompt=project_details.get('globalPrompt', ''),
             question_prompt=project_details.get('questionPrompt', '')
         )
-        raw_response = self.llm_client.get_response(question_prompt)
+        raw_response = await self.llm_client.get_response_async(question_prompt)
         return extract_json_from_llm_output(raw_response)
 
     def _process_questions(self, questions, project_config):

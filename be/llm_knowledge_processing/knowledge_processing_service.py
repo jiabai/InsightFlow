@@ -177,46 +177,53 @@ class KnowledgeProcessingService:
                 if content is None:
                     return False
                 splitter = MarkdownSplitter()
-                chunks = splitter.split_markdown(content, min_length=1000, max_length=3000) or []
+                chunks = splitter.split_markdown(
+                    content,
+                    min_length=1000,
+                    max_length=3000
+                ) or []
                 logger.debug("File '%s' split into %s chunks.", original_filename, len(chunks))
-
-                # 4. 处理每个块，生成问题
                 if chunks:
-                    db_chunks: list[Chunk] = await self.db_manager.save_chunks(
+                    db_chunks = await self.db_manager.save_chunks(
                         mysql_db,
                         chunks,
                         user_id,
                         file_id,
                         original_filename
                     )
-                    total_questions: int = await self._generate_questions_and_save(
-                        mysql_db,
-                        db_chunks,
-                        user_id,
-                        file_id,
-                        self.config.project_config,
-                        self.config.project_details
-                    )
-                    logger.debug(
-                        "Generated %s questions for file '%s'.",
-                        total_questions,
-                        original_filename
-                    )
                 else:
                     logger.error("No chunks generated from file '%s'.", original_filename)
                     return False
-                # 5. 更新Redis状态为 'Completed'
-                await self.redis_manager.set_file_status(file_id, "Completed")
-                logger.debug(
-                    "File '%s' processing completed, Redis status updated to 'Completed'.",
-                    original_filename
-                )
             except (IOError, ValueError, RuntimeError, asyncio.CancelledError) as e:
                 logger.error("Error processing file '%s': %s", stored_filename, e, exc_info=True) 
                 if file_id:
                     await self.redis_manager.set_file_status(file_id, "Failed")
                     logger.debug("Redis status updated to 'Failed'.")  
                 return False
+            # 4. 生成问题
+            if chunks:
+                logger.info("Start to generate questions for file '%s'.", original_filename)
+                total_questions = 0
+                for chunk in db_chunks:
+                    # 生成问题（LLM调用）
+                    generated_questions = await self._generate_questions(
+                        chunk.content,
+                        self.config.project_config,
+                        self.config.project_details,
+                        []
+                    )
+                    if generated_questions:
+                        async with self.db_manager.get_db() as mysql_db:
+                            saved_count = await self.db_manager.save_questions(
+                                mysql_db, user_id, file_id, generated_questions, chunk.id
+                            )
+                            total_questions += saved_count
+            # 5. 更新Redis状态为 'Completed'
+            await self.redis_manager.set_file_status(file_id, "Completed")
+            logger.debug(
+                "File '%s' processing completed, Redis status updated to 'Completed'.",
+                original_filename
+            )
         return True
 
     async def _get_file_metadata_and_ids(self, mysql_db, file_id: str):

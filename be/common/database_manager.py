@@ -157,7 +157,15 @@ class DatabaseManager:
         if self.engine:
             return
         try:
-            self.engine = create_async_engine(self.database_url, echo=False)
+            self.engine = create_async_engine(
+                self.database_url,
+                echo=False,
+                pool_size=10,          # 连接池大小
+                max_overflow=20,       # 最大溢出连接数
+                pool_timeout=30,       # 获取连接超时时间
+                pool_recycle=3600,     # 连接回收时间（1小时）
+                pool_pre_ping=True     # 连接前ping检查
+            )
             self.async_session = async_sessionmaker(
                 self.engine,
                 expire_on_commit=False,
