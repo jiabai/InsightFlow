@@ -1,0 +1,55 @@
+{
+    "citations": [
+        {
+            "authors": ["阿里云开发者社区"],
+            "date": "2025年03月07日",
+            "docId": "c013bcbf-eda7-4744-b4dc-59735d06ddbe",
+            "link": "https://developer.aliyun.com/article/1655940",
+            "snippet": "一、量子计算的基本原理\n量子计算的基础在于量子力学的两个核心特性：叠加与纠缠。\n- 叠加原理：与传统计算机的比特不同，量子比特（qubit）可以同时处于0和1的叠加态，使得量子计算机可以并行处理大量计算。\n- 纠缠特性：量子比特之间存在深度关联，当一个比特的状态被测量后，其他纠缠比特的状态也会同时确定。\n通过这两大特性，量子计算具有指数级提升计算能力的潜力。",
+            "title": "量子计算的未来蓝图:从量子比特到量子霸权-阿里云开发者社区"
+        },
+        // ... [其他 citations 数据保持相同格式]
+    ],
+    "content": "量子计算的基本原理主要基于量子力学的两个核心特性：**叠加**和**纠缠**[[1]][[2]][[4]]。\n\n1. **叠加原理**：与传统计算机的比特（bit）不同，量子比特（qubit）可以同时处于0和1的叠加态，这意味着一个量子比特可以同时表示0和1两种状态[[3]][[7]]。这种叠加态使得量子计算机可以在同一时间处理多个计算路径，从而实现巨大的并行计算能力[[4]][[6]]。\n\n2. **纠缠原理**：量子比特之间存在深度关联，当一个比特的状态被测量后，其他纠缠比特的状态也会同时确定[[1]][[2]]。这种纠缠特性使得量子计算机能够在多个量子比特之间进行高效的信息传递和计算[[4]][[5]]。\n\n量子计算利用这些量子力学原理，使得量子计算机在处理某些特定任务时具有显著的优势，尤其是在解决传统计算机难以处理的复杂问题时[[2]][[8]]。",
+    "role": "assistant"
+}
+
+CallToolResult(
+    content=[
+        TextContent(
+            type='text',
+            text={
+                "credits": 10,
+                "searchParameters": {
+                    "conciseSnippet": false,
+                    "format": "chat_completions", 
+                    "includeRawContent": false,
+                    "includeSummary": false,
+                    "q": "量子计算的基本原理",
+                    "scope": "webpage",
+                    "size": 10
+                },
+                "total": 36,
+                "webpages": [
+                    {
+                        "authors": ["阿里云开发者社区"],
+                        "date": "2025年03月07日",
+                        "docId": "c013bcbf-eda7-4744-b4dc-59735d06ddbe",
+                        "link": "https://developer.aliyun.com/article/1655940",
+                        "position": 1,
+                        "score": "high",
+                        "snippet": "一、量子计算的基本原理\n量子计算的基础在于量子力学的两个核心特性：叠加与纠缠。\n- 叠加原理：与传统计算机的比特不同，量子比特（qubit）可以同时处于0和1的叠加态，使得量子计算机可以并行处理大量计算。\n- 纠缠特性：量子比特之间存在深度关联，当一个比特的状态被测量后，其他纠缠比特的状态也会同时确定。\n通过这两大特性，量子计算具有指数级提升计算能力的潜力。",
+                        "title": "量子计算的未来蓝图: 从量子比特到量子霸权-阿里云开发者社区"
+                    },
+                    // Additional webpages entries omitted for brevity...
+                ]
+            },
+            annotations=None,
+            meta=None,
+            description=None
+        )
+    ],
+    structured_content=None,
+    data=None,
+    is_error=False
+)
