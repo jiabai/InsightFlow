@@ -155,7 +155,7 @@ async def upload_file(
             file_id=file_id,
             user_id=user_id,
             filename=file.filename,
-            file_size=file.size,
+            file_size= len(file_content) ,
             file_type=file.content_type,
             stored_filename=stored_filename
         )
@@ -165,9 +165,9 @@ async def upload_file(
         return {
             "file_id": file_id,
             "filename": file.filename,
-            "size": file.size,
+            "size": len(file_content),
             "type": file.content_type,
-            "upload_time": datetime.now().isoformat(),
+            "upload_time": file_metadata.upload_time.isoformat(),
             "stored_filename": stored_filename,
             "status": "Upload Completed"
         }
@@ -223,7 +223,7 @@ async def get_all_files(
             )
             for file_metadata in file_metadata_list
         ]
-        return file_metadata_response
+        return file_metadata_response or []
     except DatabaseError as e:
         logger.error("Failed to get all files: %s", str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e
@@ -277,7 +277,7 @@ async def get_files_by_user(
             )
             for result in results
         ]
-        return file_metadata_response
+        return file_metadata_response or []
     except DatabaseError as e:
         logger.error("Failed to get files for user %s: %s", user_id, str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e
@@ -328,7 +328,7 @@ async def get_file_by_user_and_fileid(
         return file_metadata_response
     except DatabaseError as e:
         logger.error("Failed to get file metadata for file_id %s: %s", file_id, str(e))
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+        raise HTTPException(status_code=404, detail="Internal server error") from e
 
 @router.delete("/delete/{user_id}/{file_id}")
 async def delete_file(
@@ -407,7 +407,7 @@ async def delete_file(
         await db_mgr.rollback()
         logger.error("Failed to delete file with file_id %s: %s", file_id, str(e))
         raise HTTPException(
-            status_code=500,
+            status_code=404,
             detail=f"Internal server error: {str(e)}"
         ) from e
 
@@ -443,7 +443,7 @@ async def redis_file_status(
     except RedisError as e:
         logger.error("Failed to get file status from Redis: %s", str(e))
         raise HTTPException(
-            status_code=500, 
+            status_code=404, 
             detail="Internal server error - Failed to get file status from Redis"
         ) from e
 
@@ -451,7 +451,8 @@ async def redis_file_status(
 async def download_file(
     user_id: str,
     file_id: str,
-    db_mgr: AsyncSession = Depends(get_db)
+    db_mgr: AsyncSession = Depends(get_db),
+    storage_mgr: StorageManager = Depends(get_storage_manager)
 ):
     """
     Download a file for a specific user.
@@ -483,7 +484,7 @@ async def download_file(
             raise DatabaseError(f"File metadata not found for file_id {file_id}")
         logger.debug("Found file metadata for file_id %s", file_id)
 
-        object_stream = await storage_manager.download_file(
+        object_stream = await storage_mgr.download_file(
             file_metadata.stored_filename,
             user_id
         )
@@ -569,7 +570,8 @@ async def generate_questions(
 @router.get("/questions/{file_id}")
 async def get_questions_by_file(
     file_id: str,
-    db_mgr: AsyncSession = Depends(get_db)
+    db_mgr: AsyncSession = Depends(get_db),
+    redis_mgr: RedisManager = Depends(get_redis_manager)
 ):
     """
     Retrieve all questions associated with a specific file.
@@ -597,8 +599,7 @@ async def get_questions_by_file(
     """
     try:
         # 首先检查文件状态
-        await redis_manager.initialize()
-        status = await redis_manager.get_file_status(file_id)
+        status = await redis_mgr.get_file_status(file_id)
         if status != "Completed":
             raise RedisError(f"File processing not completed, current status: {status}")
         logger.debug("File processing completed, status: %s", status)
