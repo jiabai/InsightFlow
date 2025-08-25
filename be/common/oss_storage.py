@@ -28,16 +28,17 @@ class OSSStorage(StorageInterface):
 
     async def upload_file(self, file_content: bytes, unique_filename: str, custom_dir: str = None):
         try:
-            oss_path = os.path.join(custom_dir, unique_filename) if custom_dir else unique_filename
+            oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
             await run_in_threadpool(self.bucket.put_object, oss_path, file_content)
         except oss2.exceptions.OssError as e:
             raise StorageError(f"Failed to upload file {unique_filename} to OSS: {e}") from e
 
     async def download_file(self, unique_filename: str, custom_dir: str = None) -> io.BytesIO:
         try:
-            oss_path = os.path.join(custom_dir, unique_filename) if custom_dir else unique_filename
+            oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
+            response = await run_in_threadpool(self.bucket.get_object, oss_path)
             object_stream = io.BytesIO()
-            await run_in_threadpool(self.bucket.get_object_to_file, oss_path, object_stream)
+            object_stream.write(response.read())
             object_stream.seek(0)
             return object_stream
         except oss2.exceptions.OssError as e:
@@ -47,7 +48,7 @@ class OSSStorage(StorageInterface):
 
     async def delete_file(self, unique_filename: str, custom_dir: str = None):
         try:
-            oss_path = os.path.join(custom_dir, unique_filename) if custom_dir else unique_filename
+            oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
             await run_in_threadpool(self.bucket.delete_object, oss_path)
         except oss2.exceptions.OssError as e:
             if e.code == 'NoSuchKey':

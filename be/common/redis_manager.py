@@ -47,7 +47,7 @@ class RedisManager:
             except aioredis.RedisError as e:
                 raise RedisError(f"Failed to initialize Redis: {e}") from e
 
-    async def set_file_status(self, file_id: str, status: str):
+    async def set_file_status(self, file_id: str, status: str, ttl_seconds: int = 604800):
         """Set the status of a file in Redis.
 
         Args:
@@ -55,7 +55,7 @@ class RedisManager:
             status (str): The status to set for the file.
         """
         try:
-            await self.redis_client.set(file_id, status)
+            await self.redis_client.set(file_id, ttl_seconds, status)
         except aioredis.RedisError as e:
             raise RedisError(f"Failed to set file status for {file_id}: {e}") from e
 

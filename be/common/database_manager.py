@@ -449,30 +449,6 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             raise DatabaseError(f"Failed to get questions by chunk ID {chunk_id}: {e}") from e
 
-    async def get_questions_by_project_id(
-        self,
-        db: AsyncSession,
-        project_id: str
-    ) -> List[Question]:
-        """
-        Get questions by project ID.
-
-        Args:
-            db (AsyncSession): Database session object
-            project_id (str): Unique identifier for the project
-
-        Returns:
-            List[Question]: List of question objects
-
-        Raises:
-            DatabaseError: If there's an error while querying the database
-        """
-        try:
-            result = await db.execute(select(Question).filter(Question.project_id == project_id))
-            return result.scalars().all()
-        except SQLAlchemyError as e:
-            raise DatabaseError(f"Failed to get questions by project ID {project_id}: {e}") from e
-
     async def delete_questions_by_chunk_id(
         self,
         db: AsyncSession,
