@@ -4,7 +4,7 @@ import requests
 
 user_id = "userid_456"
 user_id = hashlib.sha256(user_id.encode()).hexdigest()
-url = f"http://127.0.0.1:8000/upload/{user_id}"
+url = f"http://39.107.59.41:18080/upload/{user_id}"
 file_path = os.path.join("D:\\", "Code", "notes", "Effectiveness of Advertising Campaigns on Short-Form Video Social Platforms.md")
 print(file_path)
 

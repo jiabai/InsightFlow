@@ -55,7 +55,7 @@ class RedisManager:
             status (str): The status to set for the file.
         """
         try:
-            await self.redis_client.set(file_id, ttl_seconds, status)
+            await self.redis_client.set(file_id, status, expire=ttl_seconds)
         except aioredis.RedisError as e:
             raise RedisError(f"Failed to set file status for {file_id}: {e}") from e
 

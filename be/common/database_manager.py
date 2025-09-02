@@ -427,14 +427,14 @@ class DatabaseManager:
     async def get_questions_by_chunk_id(
         self,
         db: AsyncSession,
-        chunk_id: str
+        chunk_id: int
     ) -> List[Question]:
         """
         Get questions by chunk ID.
 
         Args:
             db (AsyncSession): Database session object
-            chunk_id (str): Unique identifier for the chunk
+            chunk_id (int): Unique identifier for the chunk
 
         Returns:
             List[Question]: List of question objects
@@ -584,13 +584,13 @@ class DatabaseManager:
             await db.rollback()
             raise DatabaseError(f"Failed to delete file metadata: {e}") from e
 
-    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: str) -> Chunk:
+    async def get_chunk_by_id(self, db: AsyncSession, chunk_id: int) -> Chunk:
         """
         Get chunk by chunk ID.
 
         Args:
             db (AsyncSession): Database session object
-            chunk_id (str): Unique identifier for the chunk
+            chunk_id (int): Unique identifier for the chunk
 
         Returns:
             Chunk: Chunk object
