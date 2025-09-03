@@ -1,7 +1,7 @@
 node_modules/
 upload_file/
 completed/
-be/llm_knowledge_processing/__pycache__/
-be/common/__pycache__/
-be/logs/
-be/api_services/__pycache__/
+src/be/llm_knowledge_processing/__pycache__/
+src/be/common/__pycache__/
+src/be/logs/
+src/be/api_services/__pycache__/
