@@ -1,0 +1,125 @@
+---
+title: "generate_text"
+description: "Generate text synchronously with a single call - returns a GenerateTextResult with rich metadata."
+icon: "message"
+---
+
+import { Note, Tip, Warning, Steps, Step, CodeGroup, Check } from "mintlify/components";
+
+## Overview
+
+`generate_text` is a high-level helper for synchronous text generation that returns a `GenerateTextResult` with rich metadata including usage statistics, finish reasons, and tool calls.
+
+## Basic usage
+
+```python generate_text.py
+from ai_sdk import generate_text, openai
+
+model = openai("gpt-4.1-mini")
+res = generate_text(model=model, prompt="Say hi to the world in one sentence")
+print(res.text) # "Hello, world – great to see you!"
+print(res.usage) # TokenUsage(prompt_tokens=4, completion_tokens=9, ...)
+```
+
+## Parameters
+
+| Name        | Type                                   | Required                   | Description                                                                                          |
+| ----------- | -------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `model`     | `LanguageModel`                        | ✓                          | Provider instance created via e.g. `openai()` or `anthropic()`                                       |
+| `prompt`    | `str`                                  | one of `prompt`/`messages` | User prompt (plain string).                                                                          |
+| `system`    | `str`                                  | –                          | System instruction prepended to the conversation.                                                    |
+| `messages`  | `List[AnyMessage]`                     | –                          | Fine-grained message array providing full control over roles & multimodal parts. Overrides `prompt`. |
+| `tools`     | `List[Tool]`                           | –                          | Enable iterative tool-calling (see further below).                                                   |
+| `max_steps` | `int`                                  | 8                          | Safeguard to abort endless tool loops.                                                               |
+| `on_step`   | `Callable[[OnStepFinishResult], None]` | –                          | Callback executed after every model ↔ tool round-trip.                                               |
+| `**kwargs`  | provider-specific                      | –                          | Forwarded verbatim to the underlying SDK – e.g. `temperature=0.2`.                                   |
+
+## Return value
+
+`GenerateTextResult` exposes rich metadata:
+
+```python
+print(res.finish_reason)   # "stop", "length", "tool" …
+print(res.tool_calls)      # populated when tool-calling is active
+print(res.provider_metadata)
+```
+
+## Examples
+
+### Basic text generation
+
+```python
+from ai_sdk import generate_text, openai
+
+model = openai("gpt-4.1-mini")
+res = generate_text(
+    model=model,
+    prompt="Write a haiku about programming"
+)
+print(res.text)
+```
+
+### With system instruction
+
+```python
+from ai_sdk import generate_text, openai
+
+model = openai("gpt-4.1-mini")
+res = generate_text(
+    model=model,
+    system="You are a helpful coding assistant. Always provide clear, concise explanations.",
+    prompt="Explain what recursion is in simple terms"
+)
+print(res.text)
+```
+
+### With custom parameters
+
+```python
+from ai_sdk import generate_text, openai
+
+model = openai("gpt-4.1-mini")
+res = generate_text(
+    model=model,
+    prompt="Write a creative story",
+    temperature=0.8,
+    max_tokens=500
+)
+print(res.text)
+```
+
+## Tool-calling
+
+<Note>
+  See the dedicated <a href="/sdk/tool">Tool page</a> for a complete walkthrough.
+</Note>
+
+```python
+from ai_sdk import tool, generate_text, openai
+
+add = tool(
+    name="add",
+    description="Add two integers.",
+    parameters={
+        "type": "object",
+        "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}},
+        "required": ["a", "b"],
+    },
+    execute=lambda a, b: a + b,
+)
+
+model = openai("gpt-4.1-mini")
+res = generate_text(
+    model=model,
+    prompt="What is 21 + 21?",
+    tools=[add],
+)
+print(res.text)  # "The result is 42."
+```
+
+---
+
+<Tip>
+  `generate_text` is <strong>provider-agnostic</strong>. Swap <code>openai()</code> for{" "}
+  <code>anthropic()</code> or any other future implementation – no code changes required.
+</Tip>{" "}

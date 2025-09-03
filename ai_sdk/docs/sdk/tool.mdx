@@ -1,0 +1,469 @@
+---
+title: "Tool Calling"
+description: "Define and use tools with the AI SDK for function calling capabilities."
+icon: "https://assets.streamlinehq.com/image/private/w_300,h_300,ar_1/f_auto/v1/icons/1/tools-icon-wii9u8ifrjrd99btrqfgi.png/tools-icon-tdvkiqisswbrmtkiygb0ia.png?_a=DATAg1AAZAA0"
+---
+
+import { Note, Tip, Warning, CodeGroup, Steps, Step } from "mintlify/components";
+
+## Overview
+
+The AI SDK provides a lightweight tool calling system that allows you to define functions that can be called by language models. Tools couple a JSON schema (name, description, parameters) with a Python handler function, enabling the model to execute custom logic.
+
+## Quick Start
+
+### Using Pydantic Models (Recommended)
+
+For better type safety and validation, use Pydantic models:
+
+```python
+from pydantic import BaseModel, Field
+from ai_sdk import tool
+
+class AddNumbersParams(BaseModel):
+    a: float = Field(description="First number")
+    b: float = Field(description="Second number")
+
+@tool(
+    name="add_numbers",
+    description="Add two numbers together",
+    parameters=AddNumbersParams
+)
+def add_numbers(a: float, b: float) -> float:
+    return a + b
+```
+
+### JSON Schema (Legacy)
+
+For backward compatibility, you can still use JSON schema:
+
+```python
+from ai_sdk import tool
+
+@tool(
+    name="add_numbers",
+    description="Add two numbers together",
+    parameters={
+        "type": "object",
+        "properties": {
+            "a": {"type": "number", "description": "First number"},
+            "b": {"type": "number", "description": "Second number"}
+        },
+        "required": ["a", "b"]
+    }
+)
+def add_numbers(a: float, b: float) -> float:
+    return a + b
+```
+
+## Using Tools with Language Models
+
+### Basic Usage
+
+```python
+from ai_sdk import generate_text, openai
+
+model = openai("gpt-4o-mini")
+result = generate_text(
+    model=model,
+    prompt="What is 15 + 27?",
+    tools=[add_numbers]
+)
+print(result.text)  # "The result is 42."
+```
+
+### Streaming with Tools
+
+```python
+import asyncio
+from ai_sdk import stream_text, openai
+
+async def main():
+    model = openai("gpt-4o-mini")
+    stream = stream_text(
+        model=model,
+        prompt="Calculate 10 * 5 and explain the result.",
+        tools=[multiply_numbers]
+    )
+
+    async for chunk in stream.text_stream:
+        print(chunk, end="", flush=True)
+
+asyncio.run(main())
+```
+
+## Advanced Tool Examples
+
+### Complex Pydantic Model with Validation
+
+```python
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from ai_sdk import tool
+
+class UserProfileParams(BaseModel):
+    name: str = Field(description="User's full name", min_length=1, max_length=100)
+    age: int = Field(description="User's age", ge=0, le=120)
+    email: Optional[str] = Field(default=None, description="User's email address")
+    interests: List[str] = Field(default_factory=list, description="User's interests")
+    is_active: bool = Field(default=True, description="Whether the user is active")
+
+@tool(
+    name="create_user_profile",
+    description="Create a new user profile with validation",
+    parameters=UserProfileParams
+)
+def create_user_profile(
+    name: str,
+    age: int,
+    email: Optional[str] = None,
+    interests: List[str] = None,
+    is_active: bool = True
+) -> dict:
+    return {
+        "id": f"user_{hash(name) % 10000}",
+        "name": name,
+        "age": age,
+        "email": email,
+        "interests": interests or [],
+        "is_active": is_active,
+        "created_at": "2024-01-01T00:00:00Z"
+    }
+```
+
+### Calculator with Multiple Operations
+
+```python
+from pydantic import BaseModel, Field
+from ai_sdk import tool
+
+class CalculatorParams(BaseModel):
+    a: float = Field(description="First number")
+    b: float = Field(description="Second number")
+    operation: str = Field(description="Mathematical operation", pattern="^[+\\-*/]$")
+
+@tool(
+    name="calculator",
+    description="Perform basic mathematical operations",
+    parameters=CalculatorParams
+)
+def calculator(a: float, b: float, operation: str) -> float:
+    if operation == "+":
+        return a + b
+    elif operation == "-":
+        return a - b
+    elif operation == "*":
+        return a * b
+    elif operation == "/":
+        if b == 0:
+            raise ValueError("Division by zero")
+        return a / b
+    else:
+        raise ValueError(f"Unknown operation: {operation}")
+```
+
+### Async Tool Functions
+
+```python
+import asyncio
+from ai_sdk import tool
+
+@tool(
+    name="fetch_weather",
+    description="Get current weather for a city",
+    parameters={
+        "type": "object",
+        "properties": {
+            "city": {"type": "string", "description": "City name"}
+        },
+        "required": ["city"]
+    }
+)
+async def fetch_weather(city: str) -> str:
+    # Simulate async API call
+    await asyncio.sleep(0.1)
+    weather_data = {
+        "New York": "72°F, Sunny",
+        "London": "55°F, Rainy",
+        "Tokyo": "68°F, Cloudy"
+    }
+    return weather_data.get(city, "Weather data not available")
+```
+
+## Tool Validation
+
+### Automatic Validation with Pydantic
+
+When using Pydantic models, the tool automatically validates inputs:
+
+```python
+# This will raise a validation error
+try:
+    result = create_user_profile.run(name="", age=-5)
+except Exception as e:
+    print(f"Validation error: {e}")
+```
+
+### Manual Validation
+
+```python
+@tool(
+    name="safe_division",
+    description="Perform safe division with validation",
+    parameters={
+        "type": "object",
+        "properties": {
+            "numerator": {"type": "number"},
+            "denominator": {"type": "number"}
+        },
+        "required": ["numerator", "denominator"]
+    }
+)
+def safe_division(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        raise ValueError("Division by zero is not allowed")
+    return numerator / denominator
+```
+
+## Tool Execution
+
+### Direct Tool Execution
+
+```python
+# Execute tool directly
+result = add_numbers.run(a=10, b=20)
+print(result)  # 30
+
+# Execute async tool
+weather = await fetch_weather.run(city="New York")
+print(weather)  # "72°F, Sunny"
+```
+
+### Tool Execution with Validation
+
+```python
+# With Pydantic model validation
+user = create_user_profile.run(
+    name="Alice",
+    age=30,
+    email="alice@example.com",
+    interests=["python", "ai"]
+)
+print(user)
+```
+
+## Best Practices
+
+### 1. Use Pydantic Models
+
+<Tip>
+  Always use Pydantic models for tool parameters when possible. They provide: - Automatic validation
+  - Better type safety - Self-documenting schemas - IDE support
+</Tip>
+
+### 2. Provide Clear Descriptions
+
+```python
+class WeatherParams(BaseModel):
+    city: str = Field(description="The city to get weather for")
+    units: str = Field(default="celsius", description="Temperature units (celsius/fahrenheit)")
+```
+
+### 3. Handle Errors Gracefully
+
+```python
+@tool(name="api_call", description="Make an API call")
+def api_call(url: str) -> dict:
+    try:
+        # API call logic
+        return {"success": True, "data": "..."}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+```
+
+### 4. Use Async for I/O Operations
+
+```python
+@tool(name="database_query", description="Query database")
+async def database_query(query: str) -> list:
+    # Async database operation
+    return await db.execute(query)
+```
+
+## Tool Schema Generation
+
+### From Pydantic Models
+
+The SDK automatically converts Pydantic models to JSON schema:
+
+```python
+class ComplexParams(BaseModel):
+    name: str = Field(description="User name")
+    age: int = Field(description="User age", ge=0)
+    email: Optional[str] = Field(default=None, description="User email")
+
+@tool(name="complex_tool", description="Complex tool", parameters=ComplexParams)
+def complex_tool(name: str, age: int, email: Optional[str] = None) -> dict:
+    return {"name": name, "age": age, "email": email}
+
+# The generated schema includes all field descriptions and constraints
+print(complex_tool.parameters)
+```
+
+### Manual JSON Schema
+
+For backward compatibility, you can still use manual JSON schema:
+
+```python
+@tool(
+    name="manual_tool",
+    description="Tool with manual schema",
+    parameters={
+        "type": "object",
+        "properties": {
+            "input": {"type": "string", "description": "Input string"}
+        },
+        "required": ["input"]
+    }
+)
+def manual_tool(input: str) -> str:
+    return input.upper()
+```
+
+## Error Handling
+
+### Validation Errors
+
+```python
+# Pydantic validation errors
+try:
+    result = create_user_profile.run(name="", age=-5)
+except Exception as e:
+    print(f"Validation failed: {e}")
+```
+
+### Runtime Errors
+
+```python
+@tool(name="risky_operation", description="Operation that might fail")
+def risky_operation(input: str) -> str:
+    if input == "error":
+        raise ValueError("Simulated error")
+    return f"Processed: {input}"
+
+# Handle runtime errors
+try:
+    result = risky_operation.run(input="error")
+except Exception as e:
+    print(f"Operation failed: {e}")
+```
+
+## Provider Compatibility
+
+### OpenAI Function Calling
+
+Tools are automatically converted to OpenAI's function calling format:
+
+```python
+# This works with OpenAI models
+result = generate_text(
+    model=openai("gpt-4o-mini"),
+    prompt="Calculate 5 + 3",
+    tools=[add_numbers]
+)
+```
+
+### Anthropic Tool Use
+
+Tools work with Claude models through the OpenAI compatibility layer:
+
+```python
+# This works with Anthropic models
+result = generate_text(
+    model=anthropic("claude-3-haiku-20240307"),
+    prompt="Calculate 5 + 3",
+    tools=[add_numbers]
+)
+```
+
+## Advanced Patterns
+
+### Tool Composition
+
+```python
+@tool(name="math_operations", description="Multiple math operations")
+def math_operations(operation: str, a: float, b: float) -> float:
+    if operation == "add":
+        return add_numbers.run(a=a, b=b)
+    elif operation == "multiply":
+        return multiply_numbers.run(a=a, b=b)
+    else:
+        raise ValueError(f"Unknown operation: {operation}")
+```
+
+### Tool with Context
+
+```python
+class ContextualParams(BaseModel):
+    query: str = Field(description="User query")
+    context: Optional[str] = Field(default=None, description="Additional context")
+
+@tool(name="contextual_search", description="Search with context")
+def contextual_search(query: str, context: Optional[str] = None) -> dict:
+    # Use context to improve search
+    search_results = perform_search(query, context)
+    return {"results": search_results, "query": query, "context": context}
+```
+
+## Migration from JSON Schema
+
+If you have existing tools using JSON schema, you can easily migrate to Pydantic models:
+
+### Before (JSON Schema)
+
+```python
+@tool(
+    name="add_numbers",
+    description="Add two numbers",
+    parameters={
+        "type": "object",
+        "properties": {"a": {"type": "number"}, "b": {"type": "number"}},
+        "required": ["a", "b"]
+    }
+)
+def add_numbers(a: float, b: float) -> float:
+    return a + b
+```
+
+### After (Pydantic Model)
+
+```python
+class AddNumbersParams(BaseModel):
+    a: float = Field(description="First number")
+    b: float = Field(description="Second number")
+
+@tool(
+    name="add_numbers",
+    description="Add two numbers",
+    parameters=AddNumbersParams
+)
+def add_numbers(a: float, b: float) -> float:
+    return a + b
+```
+
+---
+
+<Tip>
+  Tools provide a powerful way to extend AI model capabilities with custom logic. Use Pydantic
+  models for the best developer experience and type safety.
+</Tip>
+
+<Note>
+  All tools are automatically validated and converted to the appropriate format for each provider.
+  The SDK handles the complexity of provider-specific implementations.
+</Note>
+
+<Warning>
+  While JSON schema is still supported for backward compatibility, Pydantic models are recommended
+  for new development due to their superior type safety and validation capabilities.
+</Warning>

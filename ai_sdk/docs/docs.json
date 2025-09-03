@@ -1,0 +1,101 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "Python AI SDK",
+  "colors": {
+    "primary": "#00B7EB",
+    "light": "#00B7EB",
+    "dark": "#00B7EB"
+  },
+  "background": {
+    "decoration": "windows"
+  },
+  "favicon": "/favicon.svg",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Overview",
+        "groups": [
+          {
+            "group": "Introduction",
+            "pages": ["sdk/introduction", "sdk/concepts"]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "examples/basic-text",
+              "examples/streaming",
+              "examples/structured-output",
+              "examples/tool-agent",
+              "examples/embeddings-search"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "groups": [
+          {
+            "group": "Text Generation",
+            "pages": ["sdk/generate_text", "sdk/stream_text"]
+          },
+          {
+            "group": "Object Generation",
+            "pages": ["sdk/generate_object", "sdk/stream_object"]
+          },
+          {
+            "group": "Embeddings",
+            "pages": ["sdk/embed", "sdk/embed_many", "sdk/cosine_similarity"]
+          },
+          {
+            "group": "Tools",
+            "pages": ["sdk/tool"]
+          },
+          {
+            "group": "Providers",
+            "pages": ["sdk/providers", "sdk/providers/openai", "sdk/providers/anthropic"]
+          },
+          {
+            "group": "Types",
+            "pages": ["sdk/types"]
+          }
+        ]
+      }
+    ],
+    "global": {
+      "anchors": [
+        {
+          "anchor": "GitHub",
+          "href": "https://github.com/python-ai-sdk/sdk",
+          "icon": "github"
+        },
+        {
+          "anchor": "PyPI",
+          "href": "https://pypi.org/project/ai-sdk-python/",
+          "icon": "python"
+        }
+      ]
+    }
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:asanshay@bharatgupta.com"
+      }
+    ]
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "perplexity", "mcp", "cursor", "vscode"]
+  },
+  "footer": {
+    "socials": {
+      "x": "https://x.com/AsanshayG",
+      "github": "https://github.com/python-ai-sdk/sdk"
+    }
+  }
+}

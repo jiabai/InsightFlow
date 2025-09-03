@@ -1,0 +1,13 @@
+2025-09-02 18:40:02,190 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:45 - Database initialized.
+2025-09-02 18:40:02,197 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:50 - Redis initialized.
+2025-09-02 18:40:02,197 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:52 - Storage initialized.
+2025-09-02 18:40:02,197 | INFO | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:lifespan:84 - Application startup completed.
+2025-09-02 18:54:39,978 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:45 - Database initialized.
+2025-09-02 18:54:39,984 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:50 - Redis initialized.
+2025-09-02 18:54:39,984 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:init_resources:52 - Storage initialized.
+2025-09-02 18:54:39,984 | INFO | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:lifespan:84 - Application startup completed.
+2025-09-02 18:55:09,847 | DEBUG | http://127.0.0.1:8000/upload/userid_123 | 6d34492125ee4df3a96182f96273a219 | D:\Code\insight-flow\be\api_services\file_routes.py:upload_file:154 - stored_filename: userid_123_0b123fe79596b454b7a2c9b4c848be6156a998eddad705db1e6eacf388680a67_result.md, user_id: userid_123
+2025-09-02 18:55:09,848 | DEBUG | http://127.0.0.1:8000/upload/userid_123 | 6d34492125ee4df3a96182f96273a219 | D:\Code\insight-flow\be\api_services\file_routes.py:upload_file:155 - file_content size: 6034
+2025-09-02 18:55:33,364 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:close_resources:60 - Background tasks canceled.
+2025-09-02 18:55:33,364 | DEBUG | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:close_resources:64 - Database engine disposed.
+2025-09-02 18:55:33,365 | INFO | No_URL | No_Request_ID | D:\Code\insight-flow\be\api_services\shared_resources.py:lifespan:90 - Application shutdown completed.
