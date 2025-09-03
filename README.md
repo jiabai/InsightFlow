@@ -7,6 +7,9 @@ InsightFlow 是一个帮助自媒体/知识工作者进行深度阅读与思考�
 当前仓库状态说明（重要）：
 - 前端代码位于 fe/*，但 Vite 构建配置与 npm 脚本默认指向 src/*。需按本文档“前端构建修复”章节调整后再构建。
 - 前端默认使用“本地模拟 API”（fe/services/apiService.js），与后端解耦即可单独体验。如果需要联动后端，请参见“接入真实后端 API”。
+- 子项目 ai_sdk 以可编辑方式安装到当前虚拟环境
+ - 在仓库根目录下执行：pip install -e ai_sdk
+ - 如果你使用 uv，也可以：uv pip install -e ai_sdk
 
 ## 目录结构
 
