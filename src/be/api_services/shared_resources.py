@@ -1,3 +1,4 @@
+# be/api_services/shared_resources.py
 """
 Shared resources and initialization/cleanup utilities for the API services.
 
@@ -14,6 +15,7 @@ Key components:
 """
 import asyncio
 import logging
+from typing import Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
@@ -29,12 +31,31 @@ storage_manager = StorageManager()
 MAX_CONCURRENT_TASKS = 10
 background_tasks = set()
 
-LOGGER = None
-def get_logger():
-    global LOGGER
-    if LOGGER is None:
-        LOGGER = setup_logging(app=app, log_file='api_services.log', level=logging.DEBUG)
-    return LOGGER
+# 使用小写变量名，避免被基于命名约定的静态检查当作“常量”
+_logger: Optional[logging.Logger] = None
+
+
+def get_logger(fastapi_app: Optional[FastAPI] = None) -> logging.Logger:
+    """
+    Get the global logger. On first call, if not initialized yet, you MUST pass
+    the FastAPI app so we can initialize logging via setup_logging.
+    Subsequent calls can omit the app and will return the cached logger.
+
+    Raises:
+        RuntimeError: if the logger has not been initialized and no app is provided.
+    """
+    global _logger
+    if _logger is not None:
+        return _logger
+
+    if fastapi_app is None:
+        raise RuntimeError(
+            "Logger not initialized. Call get_logger(fastapi_app) during application startup."
+        )
+
+    _logger = setup_logging(app=fastapi_app, log_file="api_services.log", level=logging.DEBUG)
+    return _logger
+
 
 async def init_resources():
     """在 FastAPI 启动阶段初始化数据库、Redis 与存储。"""
@@ -50,6 +71,7 @@ async def init_resources():
     logger.debug("Redis initialized.")
     await storage_manager.init_storage()
     logger.debug("Storage initialized.")
+
 
 async def close_resources():
     """在 FastAPI 关闭阶段统一释放资源。"""
@@ -68,8 +90,9 @@ async def close_resources():
     if redis_manager.redis_client:
         await redis_manager.close_redis()
 
+
 @asynccontextmanager
-async def lifespan(fastapi_app: FastAPI):
+async def lifespan(app: FastAPI):
     """
     Lifespan event handler that manages application startup and shutdown.
     
@@ -78,7 +101,9 @@ async def lifespan(fastapi_app: FastAPI):
     - On startup: necessary resources (database, Redis, storage) are initialized
     - On shutdown: proper cleanup is performed
     """
-    logger = get_logger()
+    # Initialize logging once with the concrete FastAPI app
+    logger = get_logger(app)
+
     # Startup
     await init_resources()
     logger.info("Application startup completed.")
@@ -89,5 +114,7 @@ async def lifespan(fastapi_app: FastAPI):
     await close_resources()
     logger.info("Application shutdown completed.")
 
+
 # Initialize FastAPI app
 app = FastAPI(lifespan=lifespan)
+logger = get_logger(app)

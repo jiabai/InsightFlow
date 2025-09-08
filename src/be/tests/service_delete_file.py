@@ -1,8 +1,10 @@
 import requests
+import hashlib
 
 user_id = "userid_123"
+user_id = hashlib.sha256(user_id.encode()).hexdigest()
 BASE_URL = "http://127.0.0.1:8000"
-file_id = "fa43b6889c67ccb96dfcc6d06ad01602b4631a87521d3fd5fbc0bc4195d84372"
+file_id = "3a8e2d0f03fcb4162c0d612f8e6e8f9b646ca2d61a30c8c10c7d51999085fc9f"
 
 delete_url = f"{BASE_URL}/delete/{user_id}/{file_id}"
 
