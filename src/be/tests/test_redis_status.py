@@ -28,5 +28,5 @@ def test_read_redis_key(key: str):
 
 if __name__ == "__main__":
     # 替换为你要测试的实际 key
-    TEST_KEY = "a0b111ca3407ff23e269215869205257c1a0235d8376ff4678784bf367d8ae0b"
+    TEST_KEY = "3a8e2d0f03fcb4162c0d612f8e6e8f9b646ca2d61a30c8c10c7d51999085fc9f"
     test_read_redis_key(TEST_KEY)

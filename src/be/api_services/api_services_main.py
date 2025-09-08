@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from be.api_services.shared_resources import app
 from be.api_services.file_routes import router as file_router
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,

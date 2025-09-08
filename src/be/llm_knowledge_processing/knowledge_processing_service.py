@@ -16,6 +16,7 @@ import os
 import time
 import shutil
 import asyncio
+from typing import Any, cast
 from be.common.database_manager import Chunk
 from be.api_services.shared_resources import db_manager, redis_manager
 from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
@@ -84,8 +85,7 @@ class KnowledgeProcessingService:
 
         Should be called when terminating the service to ensure proper cleanup of resources.
         """
-        await self.db_manager.dispose_engine()
-        await self.redis_manager.close_redis()
+
 
     async def poll_directory(self):
         """
@@ -110,17 +110,22 @@ class KnowledgeProcessingService:
                 return
             try:
                 # Get all markdown files in upload directory
+                stored_name = cast(str, file_metadata.stored_filename)
                 files_to_process = get_markdown_files_from_upload_dir(
                     self.config.upload_dir,
                     self.user_id,
-                    file_metadata.stored_filename
+                    stored_name
                 )
+                logger.debug("upload_dir %s", self.config.upload_dir)
+                logger.debug("completed_dir %s", self.config.completed_dir)
+                logger.debug("user_id %s", self.user_id)
+                logger.debug("stored_filename %s", file_metadata.stored_filename)
                 if not files_to_process:
                     time.sleep(5)
                     raise ValueError("No files to process")
-                logger.debug("found file_path %s", files_to_process[0][0])
-                logger.debug("file_id %s", files_to_process[0][1])
-                logger.debug("user_id %s", files_to_process[0][2])
+                logger.debug("files_to_process：found file_path %s", files_to_process[0][0])
+                logger.debug("files_to_process：file_id %s", files_to_process[0][1])
+                logger.debug("files_to_process：user_id %s", files_to_process[0][2])
 
                 for current_file_path, current_file_id, current_user_id in files_to_process:
                     logger.debug("Processing file '%s'", current_file_id)
@@ -215,7 +220,7 @@ class KnowledgeProcessingService:
                     if generated_questions:
                         async with self.db_manager.get_db() as mysql_db:
                             saved_count = await self.db_manager.save_questions(
-                                mysql_db, user_id, file_id, generated_questions, chunk.id
+                                mysql_db, user_id, file_id, generated_questions, cast(int, chunk.id)
                             )
                             total_questions += saved_count
             # 5. 更新Redis状态为 'Completed'
@@ -236,8 +241,8 @@ class KnowledgeProcessingService:
             return None, None
         logger.debug("Successfully retrieved file '%s' metadata from database.", file_id)
 
-        file_id = file_metadata.file_id
-        original_filename = file_metadata.filename
+        file_id = cast(str, file_metadata.file_id)
+        original_filename = cast(str, file_metadata.filename)
 
         return file_id, original_filename
 
@@ -277,8 +282,8 @@ class KnowledgeProcessingService:
         db_chunks: list[Chunk],
         user_id: str,
         file_id: str,
-        p_config: dict,
-        p_details: dict
+        p_config: dict[str, Any],
+        p_details: dict[str, Any]
     ) -> int:
         total_questions = 0
         for chunk in db_chunks:
@@ -296,7 +301,7 @@ class KnowledgeProcessingService:
                         user_id,
                         file_id,
                         generated_questions,
-                        chunk.id
+                        cast(int, chunk.id)
                     )
                 total_questions += saved_count
                 logger.info(
@@ -329,7 +334,7 @@ def parse_stored_filename(stored_filename: str):
         # Handle cases where the format might not match, or raise an error
         raise ValueError("Invalid stored_filename format")
 
-def get_markdown_files_from_upload_dir(upload_dir: str, user_id: str, file_id: str) -> list:
+def get_markdown_files_from_upload_dir(upload_dir: str, user_id: str, file_id: str) -> list[tuple[str, str, str]]:
     """
     Scans the upload directory for a specific markdown file within a user subdirectory.
 

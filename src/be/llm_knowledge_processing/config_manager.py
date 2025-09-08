@@ -32,7 +32,7 @@ class ConfigManager:
             'provider': 'siliconflow',
             'api_key': 'sk-wkguetxfwibczehkadqilsphgxtumfilykwselnurzxfrskf',
             'base_url': 'https://api.siliconflow.cn/v1',
-            'model': 'Qwen/Qwen3-30B-A3B'
+            'model': 'Qwen/Qwen3-30B-A3B-Instruct-2507'
         }
 
         # 项目配置

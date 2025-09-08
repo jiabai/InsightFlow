@@ -47,6 +47,10 @@ class RedisManager:
             except aioredis.RedisError as e:
                 raise RedisError(f"Failed to initialize Redis: {e}") from e
 
+    async def _ensure_connected(self):
+        if self.redis_client is None or getattr(self.redis_client, "closed", True):
+            await self.initialize()
+
     async def set_file_status(self, file_id: str, status: str, ttl_seconds: int = 604800):
         """Set the status of a file in Redis.
 
@@ -54,10 +58,19 @@ class RedisManager:
             file_id (str): The unique identifier of the file whose status should be set.
             status (str): The status to set for the file.
         """
+        await self._ensure_connected()
+        client = self.redis_client
+        assert client is not None
         try:
-            await self.redis_client.set(file_id, status, expire=ttl_seconds)
-        except aioredis.RedisError as e:
-            raise RedisError(f"Failed to set file status for {file_id}: {e}") from e
+            await client.set(file_id, status, expire=ttl_seconds)
+        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+            await self.initialize()
+            client = self.redis_client
+            assert client is not None
+            try:
+                await client.set(file_id, status, expire=ttl_seconds)
+            except aioredis.RedisError as e2:
+                raise RedisError(f"Failed to set file status for {file_id}: {e2}") from e2
 
     async def get_file_status(self, file_id: str) -> str:
         """Get the status of a file from Redis.
@@ -68,10 +81,19 @@ class RedisManager:
         Returns:
             str: The status of the file if found, None if the file_id doesn't exist.
         """
+        await self._ensure_connected()
+        client = self.redis_client
+        assert client is not None
         try:
-            return await self.redis_client.get(file_id)
-        except aioredis.RedisError as e:
-            raise RedisError(f"Failed to get file status for {file_id}: {e}") from e
+            return await client.get(file_id)
+        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+            await self.initialize()
+            client = self.redis_client
+            assert client is not None
+            try:
+                return await client.get(file_id)
+            except aioredis.RedisError as e2:
+                raise RedisError(f"Failed to get file status for {file_id}: {e2}") from e2
 
     async def delete_file_status(self, file_id: str):
         """Delete the status of a file from Redis.
@@ -79,13 +101,23 @@ class RedisManager:
         Args:
             file_id (str): The unique identifier of the file whose status should be deleted.
         """
+        await self._ensure_connected()
+        client = self.redis_client
+        assert client is not None
         try:
-            await self.redis_client.delete(file_id)
-        except aioredis.RedisError as e:
-            raise RedisError(f"Failed to delete file status for {file_id}: {e}") from e
+            await client.delete(file_id)
+        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+            await self.initialize()
+            client = self.redis_client
+            assert client is not None
+            try:
+                await client.delete(file_id)
+            except aioredis.RedisError as e2:
+                raise RedisError(f"Failed to delete file status for {file_id}: {e2}") from e2
 
     async def close_redis(self):
         """Asynchronously close the Redis connection."""
         if self.redis_client:
             self.redis_client.close()
             await self.redis_client.wait_closed()
+            self.redis_client = None

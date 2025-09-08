@@ -1,9 +1,9 @@
 import hashlib
 import requests
 
-user_id = "userid_456"
-file_id = "2bc007b6bbfa4e98f943ac7c9f394fe3bf595d5da2dc067c2efc6e86863b6f08"
+user_id = "userid_123"
 user_id = hashlib.sha256(user_id.encode()).hexdigest()
+file_id = "3a8e2d0f03fcb4162c0d612f8e6e8f9b646ca2d61a30c8c10c7d51999085fc9f"
 url = f"http://127.0.0.1:8000/questions/generate/{user_id}/{file_id}"
 
 response = requests.post(url, timeout=10)

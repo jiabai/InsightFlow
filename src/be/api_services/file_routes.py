@@ -20,6 +20,7 @@ import uuid
 from typing import List
 from urllib.parse import quote
 import json
+import traceback
 
 from pydantic import BaseModel
 from fastapi import APIRouter
@@ -44,7 +45,6 @@ from be.api_services.shared_resources import (
     get_logger
 )
 
-logger = get_logger()
 running_services = set()
 # Create an APIRouter instance
 router = APIRouter()
@@ -125,6 +125,7 @@ async def upload_file(
             - 500 if any storage, database or Redis operations fail
             - 500 for unexpected errors during upload
     """
+    logger = get_logger()
     unique_string = f"{file.filename}-{user_id}"
     file_id = hashlib.sha256(unique_string.encode()).hexdigest()
     # 生成唯一的文件名，包含用户ID、文件ID和原始文件名
@@ -210,6 +211,7 @@ async def get_all_files(
     Returns:
         List[FileMetadataResponse]: List of file metadata objects containing file details
     """
+    logger = get_logger()
     try:
         file_metadata_list: List[FileMetadata] = await db_manager.get_all_file_metadata(db_mgr)
         if not file_metadata_list:
@@ -259,6 +261,7 @@ async def get_files_by_user(
     Raises:
         HTTPException: 404 if no files are found for the given user_id
     """
+    logger = get_logger()
     try:
         results: List[FileMetadata] = await db_manager.get_file_metadata_by_user_id(
             db=db_mgr,
@@ -311,6 +314,7 @@ async def get_file_by_user_and_fileid(
     Raises:
         HTTPException: 404 if no file is found for the given user_id and file_id
     """
+    logger = get_logger()
     try:
         result: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
@@ -372,6 +376,7 @@ async def delete_file(
         DatabaseError: If database operations fail
         RedisError: If Redis operations fail
     """
+    logger = get_logger()
     try:
         file_metadata: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
@@ -441,6 +446,7 @@ async def redis_file_status(
     Raises:
         HTTPException: 404 if no status is found for the given file_id
     """
+    logger = get_logger()
     try:
         status = await redis_mgr.get_file_status(file_id)
         if status is None:
@@ -480,6 +486,7 @@ async def download_file(
     Raises:
         HTTPException: 404 if the file is not found for the given user_id and file_id
     """
+    logger = get_logger()
     try:
         file_metadata = await db_manager.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
@@ -526,13 +533,16 @@ async def run_service(service: KnowledgeProcessingService):
     Raises:
         Any exceptions raised by the service's run or shutdown methods
     """
+    logger = get_logger()
     try:
         running_services.add(service.file_id)
-        logger.info("Job %s has started running.", service.file_id)
+        logger.info("Job %s has started running. Current tasks: %d",
+                   service.file_id, len(asyncio.all_tasks()))
         await service.run()
     finally:
         running_services.discard(service.file_id)
-        logger.info("Job %s has finished running.", service.file_id)
+        logger.info("Job %s has finished running. Remaining tasks: %d",
+                   service.file_id, len(asyncio.all_tasks()))
         await service.shutdown()
 
 @router.post("/questions/generate/{user_id}/{file_id}")
@@ -560,18 +570,55 @@ async def generate_questions(
         The actual question generation happens asynchronously in the background.
         Use the /questions/{file_id} endpoint to retrieve generated questions.
     """
+    logger = get_logger()
     service = KnowledgeProcessingService(user_id, file_id)
 
     if file_id not in running_services:
         if len(background_tasks) < MAX_CONCURRENT_TASKS:
-            task = asyncio.create_task(run_service(service))
+            task_name = f"run_service:{file_id}"
+            task = asyncio.create_task(run_service(service), name=task_name)
             background_tasks.add(task)
+
+            logger.info("Async task created: %s (total=%d)", task.get_name(), len(asyncio.all_tasks()))
+
+            def _on_done(t: asyncio.Task):
+                try:
+                    exc = t.exception()
+                except asyncio.CancelledError:
+                    logger.info("Async task cancelled: %s", t.get_name())
+                    return
+                if exc:
+                    logger.error("Async task errored: %s -> %r\n%s",
+                                 t.get_name(), exc, "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)))
+                else:
+                    logger.info("Async task finished: %s", t.get_name())
+
+            task.add_done_callback(_on_done)
             task.add_done_callback(background_tasks.discard)
-            return {"message": f"Started processing for file_id: {file_id}"}
+
+            if os.getenv("DEBUG_ASYNCIO_DUMP_ON_GENERATE", "0") in ("1", "true", "yes"):
+                dump_asyncio_tasks(prefix=f"[{task_name}]")
+
+            return {"message": f"Processing request issued for file_id: {file_id}"}
         else:
             return {"message": f"Max concurrent tasks reached, processing for file_id: {file_id}"}
     else:
         return {"message": f"Processing already started for file_id: {file_id}"}
+
+def dump_asyncio_tasks(prefix: str = "") -> None:
+    """
+    将当前事件循环中的任务状态打印到日志（仅用于临时排查）。
+    """
+    logger = get_logger()
+    tasks = asyncio.all_tasks()
+    logger.info("%s Dumping %d asyncio tasks...", prefix, len(tasks))
+    for i, t in enumerate(tasks, 1):
+        name = t.get_name() if hasattr(t, "get_name") else "<unnamed>"
+        logger.info("%s [%d] %s - done=%s cancelled=%s coro=%r",
+                    prefix, i, name, t.done(), t.cancelled(), getattr(t, "get_coro", lambda: None)())
+        # 如需堆栈，可取消下方注释（注意日志量）
+        # for f in t.get_stack(limit=5):
+        #     logger.info("%s    stack: %s:%s in %s", prefix, f.f_code.co_filename, f.f_lineno, f.f_code.co_name)
 
 @router.get("/questions/{file_id}")
 async def get_questions_by_file(
@@ -604,6 +651,7 @@ async def get_questions_by_file(
             - 400 if file processing is not completed
             - 404 if no chunks found for the file
     """
+    logger = get_logger()
     try:
         # 首先检查文件状态
         status = await redis_mgr.get_file_status(file_id)
@@ -684,6 +732,7 @@ async def llm_query(
             - 404 if chunk or question not found
             - 502 if upstream LLM API call fails
     """
+    logger = get_logger()
     llm_url = os.getenv("LLM_API_URL", "https://api.siliconflow.cn/v1/")
     if not llm_url:
         logger.error("LLM_API_URL is not configured")
@@ -774,6 +823,7 @@ async def llm_query_stream(
             - 404 if chunk or question not found
             - 500 for other processing errors
     """
+    logger = get_logger()
     llm_url = os.getenv("LLM_API_URL", "https://api.siliconflow.cn/v1/")
     if not llm_url:
         logger.error("LLM_API_URL is not configured")
@@ -919,6 +969,7 @@ def filter_html_links(content: bytes) -> bytes:
         If any error occurs during filtering, the original content is returned unchanged
         and a warning is logged.
     """
+    logger = get_logger()
     try:
         # 将字节内容转换为字符串
         text_content = content.decode('utf-8', errors='ignore')
