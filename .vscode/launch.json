@@ -8,7 +8,7 @@
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
-            "program": "be/llm_knowledge_processing/knowledge_processing_service.py",
+            "program": "be/api_services/api_services_main.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
