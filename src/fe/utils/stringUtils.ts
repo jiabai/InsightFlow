@@ -1,10 +1,3 @@
-import { getOptions } from '@/lib/storage';
-import Turndown from 'turndown';
-import { Readability } from '@mozilla/readability';
-import Defuddle from 'defuddle';
-import { defaultTagsToRemove } from '@/lib/tagsToRemove';
-import { browser } from 'wxt/browser';
-
 /**
  * 计算两个字符串的相似度
  * @param s1 第一个字符串
@@ -65,112 +58,28 @@ export function editDistance(s1: string, s2: string): number {
     }
     return costs[s2.length];
 }
-
 /**
- * 将当前页面内容转换为Markdown格式
- * @returns 转换后的Markdown字符串
+ * 生成用户ID，格式为：最新时间戳+0-9随机数
+ * @returns 生成的用户ID字符串
  */
-export async function convertToMarkdown(htmlContent: string): Promise<string> {
-  try {
-    const [activeTab] = await browser.tabs.query({
-      active: true,
-      currentWindow: true,
-    });
-    if (!activeTab.id) {
-      console.error('Active tab has no ID');
-      return '';
-    }
-
-    const results = await browser.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      func: () => document.body.outerHTML,
-    });
-
-    if (!results || results.length === 0 || !results[0].result) {
-      console.error('No content found in active tab');
-      return '';
-    }
-
-    const bodyContent = results[0].result;
-    const options = await getOptions();
-    const { useReadability, useDeffudle } = options;
-
-    let markdown = bodyContent;
-
-    if (useReadability) {
-      const doc = new DOMParser().parseFromString(bodyContent, 'text/html');
-      doc.getElementById('cpdown-notification')?.remove();
-
-      const article = new Readability(doc).parse();
-      if (!article?.content) return '';
-
-      markdown = new Turndown({})
-        .remove(defaultTagsToRemove)
-        .turndown(article.content);
-    } else if (useDeffudle) {
-      try {
-        const doc = new DOMParser().parseFromString(bodyContent, 'text/html');
-        doc.getElementById('cpdown-notification')?.remove();
-        const defuddle = new Defuddle(doc, {
-          debug: true,
-          markdown: true,
-          separateMarkdown: false,
-        }).parse();
-        markdown = new Turndown({})
-          .remove(defaultTagsToRemove)
-          .turndown(defuddle.content);
-      } catch (error) {
-        console.error('Error processing with Defuddle:', error);
-        // 降级处理
-        markdown = new Turndown({})
-          .remove(defaultTagsToRemove)
-          .turndown(bodyContent);
-      }
-    } else {
-      markdown = new Turndown({})
-        .remove(defaultTagsToRemove)
-        .turndown(bodyContent);
-    }
-
-    return markdown;
-  } catch (error) {
-    console.error('Error converting to markdown:', error);
-    return '';
-  }
-};
-
+export function generateUserId(): string {
+    // 获取当前时间戳
+    const timestamp = Date.now().toString();
+    // 生成0-9之间的随机数
+    const randomNum = Math.floor(Math.random() * 10).toString();
+    // 组合时间戳和随机数
+    return timestamp + randomNum;
+}
 /**
- * 获取当前标签页的内容
+ * 对字符串进行SHA256哈希处理
+ * @param str 要哈希的字符串
+ * @returns 哈希后的十六进制字符串
  */
-export const getCurrentTabContent = async (): Promise<string> => {
-  try {
-    // 使用浏览器API获取当前标签页
-    const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-    
-    // 检查是否为about:blank页面
-    if (tab.url === 'about:blank') {
-      console.log('当前为空白页面，不执行内容提取');
-      return '';
-    }
-    
-    if (!tab.id) {
-      console.log('无法获取当前标签页ID');
-      return '';
-    }
-
-    // 注入脚本获取页面内容
-    const result = await browser.scripting.executeScript({
-      target: { tabId: tab.id! },
-      func: () => {
-        // 获取页面主要内容（可根据需要调整选择器）
-        const mainContent = document.querySelector('main') || document.body;
-        return mainContent?.innerText || document.body.innerText;
-      }
-    });
-
-    return result[0].result ?? '';
-  } catch (error) {
-    console.error('获取页面内容时出错:', error);
-    return '';
-  }
-};
+export async function sha256(str: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map(byte => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
