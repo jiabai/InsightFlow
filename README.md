@@ -44,12 +44,18 @@ InsightFlow 是一个帮助自媒体/知识工作者进行深度阅读与思考�
 │     └─ tests/                    # 后端测试样例
 │
 ├─ ai_sdk/                       # 可编辑安装的 SDK 子项目（pip install -e ai_sdk）
+├─ deepsearch_agent/             # 深度检索/研究 Agent 原型模块（搜索聚合、研究代理、抓取工具）
+│  ├─ research_agent.py
+│  ├─ base_search_provider.py
+│  ├─ tools_web_search.py
+│  └─ ...                        # 其他 provider 与配置
 ├─ requirements.txt              # 后端依赖
 ├─ README.md
 └─ LICENSE
 ```
 
 提示：WXT 构建产物默认位于 .output/ 下（按浏览器区分，如 .output/chrome-mv3）。
++补充：仓库还包含 deepsearch_agent 原型模块，使用示例与说明见 deepsearch_agent/README.md。
 
 
 ## 快速开始
@@ -67,6 +73,7 @@ InsightFlow 是一个帮助自媒体/知识工作者进行深度阅读与思考�
   - 如你的 MySQL 地址/账户/密码不同，请修改源码或提供相符环境
 - Redis 连接默认 REDIS_HOST=192.168.31.233, REDIS_PORT=6379（可通过环境变量覆盖）
 - 存储默认使用本地目录 ./upload_file（可通过 STORAGE_TYPE/LOCAL_STORAGE_BASE_DIR 调整）
+- 硬编码后续会调整为环境变量配置
 
 安装依赖：
 ```bash
@@ -79,6 +86,7 @@ python -m venv .venv
 pip install -r requirements.txt
 # 可选：安装子项目 SDK（可编辑方式）
 pip install -e ai_sdk
+# 注意：ai_sdk 子项目的 Python 要求为 >=3.12（见 ai_sdk/pyproject.toml），如当前环境为 3.10/3.11 请在独立虚拟环境中安装与运行
 # 或者（如使用 uv）：
 # uv pip install -r requirements.txt
 # uv pip install -e ai_sdk
@@ -132,6 +140,7 @@ WXT 权限与清单在 src/fe/wxt.config.ts 中维护：
 ```ts
 // 示例（可按需调整）
 const BASE_URL = "http://localhost:8000";
+// 提示：默认代码中存在远程示例地址（如 http://39.107.59.41:18080），接入真实后端时请替换为你的本地或自有后端地址，避免跨域与安全风险
 
 export async function uploadMarkdown(userId: string, file: File) {
   const form = new FormData();
@@ -298,7 +307,7 @@ curl -X DELETE http://localhost:8000/delete/demo_user/<file_id>
   - 参考 src/be/llm_knowledge_processing/llm_config_manager.py 与 config_manager.py
   - 示例环境：
     - LLM_API_URL（默认 https://api.siliconflow.cn/v1/）
-    - LLM_API_KEY（需自行提供）
+    - LLM_API_KEY（需自行提供，切勿硬编码到仓库或日志，建议使用环境变量/Secret 管理）
     - LLM_MODEL、LLM_TEMPERATURE、OPENAI_MAX_TOKENS 等
 
 前端（WXT）清单/权限：
