@@ -1,10 +1,11 @@
 body {
   background: #222;
-  color: #fff;
+  color: #e0e0e0; /* 稍微变亮文本颜色，提高可读性 */
   font-family: 'Segoe UI', Arial, sans-serif;
   margin: 0;
   min-width: 650px;
   min-height: 650px;
+  line-height: 1.6; /* 全局行高优化 */
 }
 .container {
   margin: 30px auto;
@@ -30,25 +31,36 @@ body {
 }
 
 .circle-btn {
-  width: 56px; /* 增大按钮尺寸 */
-  height: 56px; /* 增大按钮尺寸 */
+  width: 60px; /* 增大按钮尺寸 */
+  height: 60px; /* 增大按钮尺寸 */
   border-radius: 50%;
   border: none;
-  font-size: 24px; /* 调整图标大小 */
+  font-size: 28px; /* 调整图标大小 */
   color: #fff;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 平滑过渡 */
   position: relative;
   outline: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); /* 增强阴影 */
 }
 
 /* 绿色按钮样式 */
 .circle-btn.green {
-  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
-  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+  background: linear-gradient(135deg, #4DB14D 0%, #4DB14D 100%);
+  box-shadow: 0 4px 15px rgba(27, 94, 32, 0.3), 0 0 0 2px rgba(27, 94, 32, 0.1);
+  color: #000; /* 将加号颜色设置为黑色 */
+}
+
+.circle-btn.green:hover {
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(27, 94, 32, 0.4), 0 0 0 3px rgba(27, 94, 32, 0.2);
+}
+
+.circle-btn.green:active {
+  transform: translateY(1px) scale(0.98);
 }
 
 .circle-btn.green:hover::before {
@@ -57,39 +69,45 @@ body {
   left: 50%;
   bottom: 110%;
   transform: translateX(-50%);
-  background: #333;
+  background: rgba(30, 30, 30, 0.9);
   color: #fff;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: 8px;
   white-space: nowrap;
-  font-size: 0.4em;
+  font-size: 0.45em;
   z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
+
 .circle-btn.red {
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%); /* 调整渐变颜色 */
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4); /* 增强阴影效果 */
-  margin-right: 0; /* 移除右侧额外间距 */
+  background: linear-gradient(135deg, #731B1B 0%, #731B1B 100%);
+  box-shadow: 0 4px 15px rgba(183, 28, 28, 0.3), 0 0 0 2px rgba(183, 28, 28, 0.1);
+  margin-right: 0;
 }
 
 .circle-btn.red:hover {
-  transform: scale(1.05); /* 轻微放大效果 */
-  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.5);
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(183, 28, 28, 0.4), 0 0 0 3px rgba(183, 28, 28, 0.2);
 }
 
-/* 移除原有hover文字提示（如需保留可忽略此段） */
+.circle-btn.red:active {
+  transform: translateY(1px) scale(0.98);
+}
+
 .circle-btn.red:hover::before {
   content: "退出沉浸阅读模式";
   position: absolute;
   left: 50%;
   bottom: 110%;
   transform: translateX(-50%);
-  background: #333;
+  background: rgba(30, 30, 30, 0.9);
   color: #fff;
-  padding: 6px 14px;
+  padding: 8px 16px;
   border-radius: 8px;
   white-space: nowrap;
-  font-size: 0.4em;
+  font-size: 0.45em;
   z-index: 10;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 .skeleton-list {
   margin-top: 30px;
@@ -138,38 +156,42 @@ body {
   background: #2a2a2a;
 }
 .question-title {
-  font-size: 1.1em;
-  font-weight: 500;
-  letter-spacing: 1px;
+  font-size: 1.15em;
+  font-weight: 600;
+  letter-spacing: 0.5px; /* 调整字间距 */
+  color: #f5f5f5; /* 提高标题对比度 */
+  margin-bottom: 8px;
 }
 
 .question-detail {
   margin-top: 12px;
   font-size: 1em;
   line-height: 1.7;
-  color: #fff;
+  color: #d1d1d1;
   min-height: 24px;
-  border-left: 3px solid #fff;
+  border-left: 3px solid #4ade80; /* 使用绿色边框，增加视觉亮点 */
   padding-left: 12px;
   overflow: hidden;
-  white-space: nowrap; /* 临时单行显示以实现打字效果 */
+  white-space: nowrap;
   width: 0;
-  animation: printText 3s steps(60, end) forwards; /* 调整步数和时间 */
-  padding-right: 10px; /* 右侧预留空间避免文本紧贴边框 */
+  animation: printText 3s steps(60, end) forwards;
+  padding-right: 10px;
 }
 .answer-content {
-    background-color: #181818;
+    background-color: rgba(24, 24, 24, 0.85); /* 轻微透明 */
     color: #e0e0e0;
-    padding: 16px;
-    border-radius: 8px;
-    margin-top: 8px;
+    padding: 18px;
+    border-radius: 10px;
+    margin-top: 10px;
     white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.6;
-    min-height: 60px;
+    min-height: 70px;
     max-height: none;
     overflow: visible;
-    position: relative; /* 添加相对定位确保加载指示器正确定位 */
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* 添加阴影 */
+    border: 1px solid rgba(255, 255, 255, 0.05); /* 细边框 */
 }
 
 /* 删除原有的.progress-container.mini线性进度条样式 */
@@ -267,4 +289,150 @@ body {
   cursor: pointer;
   padding: 12px 16px;
   /* 保留其他现有样式 */
+}
+
+/* 添加弹框样式 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px); /* 磨砂玻璃效果 */
+}
+
+.modal-container {
+  background: rgba(24, 24, 24, 0.9);
+  border-radius: 16px;
+  padding: 24px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh; /* 限制最大高度为视口高度的80% */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: modalFadeIn 0.3s ease-out;
+  overflow-y: auto; /* 当内容超过最大高度时显示垂直滚动条 */
+  display: flex; /* 使用flex布局 */
+  flex-direction: column; /* 垂直排列子元素 */
+}
+
+.modal-content {
+  margin-bottom: 20px;
+  color: #e0e0e0;
+  line-height: 1.6;
+  flex-grow: 1; /* 让内容区域填充剩余空间 */
+  min-height: 50px; /* 设置最小高度，确保内容区域有足够空间 */
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.modal-btn-primary {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: white;
+}
+
+.modal-btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+.modal-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.modal-btn:active {
+  transform: translateY(0);
+}
+/* 优化问题标题区域样式 - 支持换行显示 */
+.question-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-right: 32px; /* 为箭头留出空间 */
+  position: relative;
+  min-height: 20px;
+}
+
+.question-title {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #e0e0e0;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  padding-right: 8px; /* 标题与箭头间距减小 */
+}
+
+/* 优化箭头样式和位置 - 顶部对齐 */
+.question-item .arrow {
+  position: absolute;
+  right: 12px;
+  top: 4px; /* 顶部对齐，可根据需要调整 */
+  width: 8px;
+  height: 8px;
+  border: solid #888;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  transition: transform 0.3s ease-in-out, border-color 0.2s;
+  cursor: pointer;
+  flex-shrink: 0;
+  margin-top: 4px; /* 微调垂直位置 */
+}
+
+.question-item:hover .arrow {
+  border-color: #fff;
+}
+
+.question-item .arrow.rotate {
+  transform: rotate(225deg);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .question-title {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  
+  .question-header {
+    padding-right: 28px;
+  }
+  
+  .question-item .arrow {
+    right: 10px;
+    top: 3px;
+    width: 7px;
+    height: 7px;
+  }
+}
+
+/* 确保问题项有足够的内边距 */
+.question-item {
+  cursor: pointer;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.question-item:last-child {
+  border-bottom: none;
 }
