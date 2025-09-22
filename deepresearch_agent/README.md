@@ -115,13 +115,6 @@ sequenceDiagram
     DeepSearchAgent->>GenerateService: Generate final report
     GenerateService->>GenerateService: Process with AI
     GenerateService-->>User: Return final report
-    
-    style DeepSearchAgent fill:#0b3d91,stroke:#f5f5f5,color:#ffffff
-    style PlanService fill:#1e88e5,stroke:#f5f5f5,color:#ffffff
-    style ResearchAgent fill:#1e88e5,stroke:#f5f5f5,color:#ffffff
-    style WebSearch fill:#42a5f5,stroke:#f5f5f5,color:#ffffff
-    style ContentExtractor fill:#42a5f5,stroke:#f5f5f5,color:#ffffff
-    style GenerateService fill:#1e88e5,stroke:#f5f5f5,color:#ffffff
 ```
 
 TODO：
