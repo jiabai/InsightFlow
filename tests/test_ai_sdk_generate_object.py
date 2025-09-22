@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from ai_sdk import generate_object, openai, generate_text, tool
 from ai_sdk.generate_object import GenerateObjectResult
 from ai_sdk.types import OnStepFinishResult
-from ai_sdk_test.resilient_crawl import resilient_extract
+from deepsearch_agent.resilient_crawl import resilient_extract
 
 MODEL = "moonshotai/kimi-k2:free"
 API_KEY = "<API_KEY>"
