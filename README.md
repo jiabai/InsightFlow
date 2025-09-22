@@ -188,7 +188,7 @@ export async function getQuestions(fileId: string) {
 架构图：
 ```mermaid
 flowchart TD
-  subgraph Browser_Extension[Browser Extension (WXT)]
+  subgraph Browser_Extension [Browser Extension (WXT)]
     A[Content/Popup UI] --> B[Sidebar/Services]
   end
   B -->|上传/触发/查询| D[FastAPI API]
