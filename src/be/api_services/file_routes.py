@@ -43,48 +43,11 @@ async def get_redis_manager(request: Request) -> RedisManager:
 async def get_storage_manager(request: Request) -> StorageInterface:
     return request.app.state.storage_manager
 
-async def get_db():
-    """
-    Dependency function that yields a database session.
-    
-    This function initializes the database engine if not already initialized,
-    and yields database sessions for use in FastAPI endpoints.
-    
-    Yields:
-        AsyncSession: An async SQLAlchemy database session
-    """
-    async with db_manager.get_db() as db:
-        yield db
-
-async def get_redis_manager() -> RedisManager:
-    """
-    Dependency function that initializes and returns a Redis manager instance.
-    
-    This function ensures the Redis manager is initialized before returning it
-    for use in FastAPI endpoints.
-    
-    Returns:
-        RedisManager: An initialized Redis manager instance
-    """
-    return redis_manager
-
-async def get_storage_manager() -> StorageInterface:
-    """
-    Dependency function that initializes and returns a storage manager instance.
-    
-    This function ensures the storage manager is initialized before returning it
-    for use in FastAPI endpoints.
-    
-    Returns:
-        StorageInterface: An initialized storage manager instance
-    """
-    return storage_manager
-
 @router.post("/upload/{user_id}")
 async def upload_file(
     user_id: str,
     file: UploadFile = File(...),
-    db_mgr: AsyncSession = Depends(get_db),
+    db_mgr: InsightRepository = Depends(get_database_manager),
     redis_mgr: RedisManager = Depends(get_redis_manager),
     storage_mgr: StorageInterface = Depends(get_storage_manager)
 ):
@@ -126,7 +89,7 @@ async def upload_file(
     stored_filename = f"{user_id}_{file_id}_{file.filename}"
 
     try:
-        existing_file: FileMetadata = await db_manager.get_file_metadata_by_file_id(db_mgr, file_id)
+        existing_file: FileMetadata = await db_mgr.get_file_metadata_by_file_id(db_mgr, file_id)
         if existing_file:
             logger.warning(
                 "File with file_id %s already exists. Returning existing file info.",
@@ -145,13 +108,15 @@ async def upload_file(
         await redis_mgr.set_file_status(file_id, "Pending")
 
         file_content = await file.read()
+        if not file_content or len(file_content) == 0:
+            raise HTTPException(status_code=400, detail="File content is empty")
         file_content = filter_html_links(file_content)
         logger.debug("stored_filename: %s, user_id: %s", stored_filename, user_id)
         logger.debug("file_content size: %s", len(file_content))
 
         await storage_mgr.upload_file(file_content, stored_filename, user_id)
 
-        file_metadata: FileMetadata = await db_manager.save_file_metadata(
+        file_metadata: FileMetadata = await db_mgr.save_file_metadata(
             db=db_mgr,
             file_id=file_id,
             user_id=user_id,
@@ -181,7 +146,7 @@ async def upload_file(
         )
         await redis_mgr.delete_file_status(file_id)
         await storage_mgr.delete_file(stored_filename, user_id)
-        await db_manager.delete_file_metadata(db_mgr, file_id)
+        await db_mgr.delete_file_metadata(db_mgr, file_id)
         raise HTTPException(
             status_code=500,
             detail=f"File upload failed: {e}"
@@ -207,7 +172,7 @@ async def get_all_files(
     """
     logger = get_logger()
     try:
-        file_metadata_list: List[FileMetadata] = await db_manager.get_all_file_metadata(db_mgr)
+        file_metadata_list: List[FileMetadata] = await db_mgr.get_all_file_metadata(db_mgr)
         if not file_metadata_list:
             raise DatabaseError("No files found in the database")
         logger.debug("Found %d files in the database", len(file_metadata_list))
@@ -257,7 +222,7 @@ async def get_files_by_user(
     """
     logger = get_logger()
     try:
-        results: List[FileMetadata] = await db_manager.get_file_metadata_by_user_id(
+        results: List[FileMetadata] = await db_mgr.get_file_metadata_by_user_id(
             db=db_mgr,
             user_id=user_id,
             skip=skip,
@@ -310,7 +275,7 @@ async def get_file_by_user_and_fileid(
     """
     logger = get_logger()
     try:
-        result: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+        result: FileMetadata = await db_mgr.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
             user_id=user_id,
             file_id=file_id
@@ -338,7 +303,7 @@ async def get_file_by_user_and_fileid(
 async def delete_file(
     user_id: str,
     file_id: str,
-    db_mgr: AsyncSession = Depends(get_db),
+    db_mgr: InsightRepository = Depends(get_database_manager),
     redis_mgr: RedisManager = Depends(get_redis_manager),
     storage_mgr: StorageInterface = Depends(get_storage_manager)
 ):
@@ -372,7 +337,7 @@ async def delete_file(
     """
     logger = get_logger()
     try:
-        file_metadata: FileMetadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+        file_metadata: FileMetadata = await db_mgr.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
             user_id=user_id,
             file_id=file_id
@@ -394,11 +359,11 @@ async def delete_file(
             file_id
         )
 
-        chunks: List[Chunk] = await db_manager.get_chunks_by_file_id(db_mgr, file_id)
+        chunks: List[Chunk] = await db_mgr.get_chunks_by_file_id(db_mgr, file_id)
         for chunk in chunks:
-            await db_manager.delete_questions_by_chunk_id(db_mgr, chunk.id)
-        await db_manager.delete_chunks_by_file_id(db_mgr, file_id)
-        await db_manager.delete_file_metadata(
+            await db_mgr.delete_questions_by_chunk_id(db_mgr, chunk.id)
+        await db_mgr.delete_chunks_by_file_id(db_mgr, file_id)
+        await db_mgr.delete_file_metadata(
             db=db_mgr,
             file_id=file_id
         )
@@ -457,7 +422,7 @@ async def redis_file_status(
 async def download_file(
     user_id: str,
     file_id: str,
-    db_mgr: AsyncSession = Depends(get_db),
+    db_mgr: InsightRepository = Depends(get_database_manager),
     storage_mgr: StorageInterface = Depends(get_storage_manager)
 ):
     """
@@ -482,7 +447,7 @@ async def download_file(
     """
     logger = get_logger()
     try:
-        file_metadata = await db_manager.get_file_metadata_by_userid_and_fileid(
+        file_metadata = await db_mgr.get_file_metadata_by_userid_and_fileid(
             db=db_mgr,
             user_id=user_id,
             file_id=file_id

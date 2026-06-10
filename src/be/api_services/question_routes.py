@@ -34,13 +34,13 @@ MAX_CONCURRENT_TASKS = 10
 router = APIRouter()
 
 
-async def get_database_manager(request: Request) -> DatabaseManager:
-    """Dependency that returns the shared DatabaseManager instance."""
+async def get_database_manager(request: Request) -> InsightRepository:
+    """Dependency that returns the shared InsightRepository instance."""
     return request.app.state.db_manager
 
 async def get_db(request: Request):
     """Dependency that yields a database session."""
-    db_mgr: DatabaseManager = request.app.state.db_manager
+    db_mgr: InsightRepository = request.app.state.db_manager
     async with db_mgr.get_db() as db:
         yield db
 
@@ -88,7 +88,10 @@ async def run_service(service: KnowledgeProcessingService):
 @router.post("/questions/generate/{user_id}/{file_id}")
 async def generate_questions(
     user_id: str,
-    file_id: str
+    file_id: str,
+    request: Request,
+    db_mgr: InsightRepository = Depends(get_database_manager),
+    redis_mgr: RedisManager = Depends(get_redis_manager),
 ):
     """
     Generate questions for a specific file asynchronously.
@@ -111,7 +114,12 @@ async def generate_questions(
         Use the /questions/{file_id} endpoint to retrieve generated questions.
     """
     logger = get_logger()
-    service = KnowledgeProcessingService(user_id, file_id)
+    service = KnowledgeProcessingService(
+        user_id=user_id,
+        file_id=file_id,
+        db_manager=db_mgr,
+        redis_manager=redis_mgr,
+    )
 
     if file_id not in running_services:
         if len(background_tasks) < MAX_CONCURRENT_TASKS:
@@ -163,7 +171,7 @@ def dump_asyncio_tasks(prefix: str = "") -> None:
 @router.get("/questions/{file_id}")
 async def get_questions_by_file(
     file_id: str,
-    db_mgr: AsyncSession = Depends(get_db),
+    db_mgr: InsightRepository = Depends(get_database_manager),
     redis_mgr: RedisManager = Depends(get_redis_manager)
 ):
     """
@@ -200,14 +208,14 @@ async def get_questions_by_file(
         logger.debug("File processing completed, status: %s", status)
 
         # 获取文件关联的所有chunks
-        chunks: List[Chunk] = await db_manager.get_chunks_by_file_id(db_mgr, file_id)
+        chunks: List[Chunk] = await db_mgr.get_chunks_by_file_id(db_mgr, file_id)
         if not chunks:
             raise DatabaseError(f"No chunks found for file_id {file_id}")
         logger.debug("Found %d chunks for file_id %s", len(chunks), file_id)
         # 收集所有问题
         all_questions = []
         for chunk in chunks:
-            questions = await db_manager.get_questions_by_chunk_id(db_mgr, chunk.id)
+            questions = await db_mgr.get_questions_by_chunk_id(db_mgr, chunk.id)
             if not questions:
                 raise DatabaseError(f"No questions found for chunk_id {chunk.id}")
             all_questions.extend([{

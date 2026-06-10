@@ -1,6 +1,6 @@
 # 04 — 上传与状态追踪
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

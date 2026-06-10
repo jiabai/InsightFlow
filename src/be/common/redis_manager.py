@@ -7,8 +7,10 @@ where file IDs serve as keys for tracking their processing states.
 """
 import os
 import asyncio
-import aioredis
+
+import redis.asyncio as aioredis
 from be.common.exceptions import RedisError
+
 
 class RedisManager:
     """A class to manage Redis operations for file status tracking.
@@ -34,15 +36,16 @@ class RedisManager:
             if self.redis_client and not self.redis_client.closed:
                 return
             try:
-                self.redis_client = await aioredis.create_redis_pool(
-                    f"redis://{self.redis_host}:{self.redis_port}",
-                    minsize=1, maxsize=10,
-                    encoding='utf-8'
+                self.redis_client = aioredis.Redis(
+                    host=self.redis_host,
+                    port=self.redis_port,
+                    encoding='utf-8',
+                    decode_responses=True,
                 )
                 response = await self.redis_client.ping()
                 if response is False:
                     raise RedisError("Failed to ping Redis server.")
-            except aioredis.ConnectionClosedError as e:
+            except aioredis.ConnectionError as e:
                 raise RedisError(f"Failed to connect to Redis: {e}") from e
             except aioredis.RedisError as e:
                 raise RedisError(f"Failed to initialize Redis: {e}") from e
@@ -62,13 +65,13 @@ class RedisManager:
         client = self.redis_client
         assert client is not None
         try:
-            await client.set(file_id, status, expire=ttl_seconds)
-        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+            await client.set(file_id, status, ex=ttl_seconds)
+        except (aioredis.ConnectionError, aioredis.RedisError):
             await self.initialize()
             client = self.redis_client
             assert client is not None
             try:
-                await client.set(file_id, status, expire=ttl_seconds)
+                await client.set(file_id, status, ex=ttl_seconds)
             except aioredis.RedisError as e2:
                 raise RedisError(f"Failed to set file status for {file_id}: {e2}") from e2
 
@@ -86,7 +89,7 @@ class RedisManager:
         assert client is not None
         try:
             return await client.get(file_id)
-        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+        except (aioredis.ConnectionError, aioredis.RedisError):
             await self.initialize()
             client = self.redis_client
             assert client is not None
@@ -106,7 +109,7 @@ class RedisManager:
         assert client is not None
         try:
             await client.delete(file_id)
-        except (aioredis.ConnectionClosedError, aioredis.RedisError) as e:
+        except (aioredis.ConnectionError, aioredis.RedisError):
             await self.initialize()
             client = self.redis_client
             assert client is not None
@@ -118,6 +121,5 @@ class RedisManager:
     async def close_redis(self):
         """Asynchronously close the Redis connection."""
         if self.redis_client:
-            self.redis_client.close()
-            await self.redis_client.wait_closed()
+            await self.redis_client.aclose()
             self.redis_client = None

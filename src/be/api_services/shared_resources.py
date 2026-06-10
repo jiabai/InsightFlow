@@ -105,4 +105,19 @@ async def lifespan(app: FastAPI):
     logger.info("Application shutdown completed.")
 
 
-app = FastAPI(lifespan=lifespan)
+def create_app(lifespan_handler=None):
+    """Create a FastAPI application instance with an optional lifespan.
+
+    Use this factory to create isolated app instances for testing::
+
+        from be.api_services.shared_resources import create_app
+        test_app = create_app(lifespan_handler=None)
+
+    When ``lifespan_handler`` is None, the app starts without connecting
+    to any databases or external services — suitable for unit tests
+    that inject mock dependencies via ``app.dependency_overrides``.
+    """
+    return FastAPI(lifespan=lifespan_handler)
+
+
+app = create_app(lifespan_handler=lifespan)

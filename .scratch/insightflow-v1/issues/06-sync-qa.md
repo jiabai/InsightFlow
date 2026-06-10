@@ -1,6 +1,6 @@
 # 06 — 同步问答
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

@@ -1,6 +1,6 @@
 # 08 — 流式问答
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

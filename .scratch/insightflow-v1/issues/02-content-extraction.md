@@ -1,6 +1,6 @@
 # 02 — 扩展 - 内容提取
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

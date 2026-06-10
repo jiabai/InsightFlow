@@ -48,6 +48,7 @@ class InsightMemoryRepository(InsightRepository):
 
     def _make_file_meta(self, file_id: str, user_id: str, filename: str,
                          file_size: int, file_type: str, stored_filename: str) -> FileMetadata:
+        from datetime import datetime
         fm = FileMetadata()
         fm.id = self._next_file_id
         self._next_file_id += 1
@@ -57,6 +58,7 @@ class InsightMemoryRepository(InsightRepository):
         fm.file_size = file_size
         fm.file_type = file_type
         fm.stored_filename = stored_filename
+        fm.upload_time = datetime.now()
         return fm
 
     def _make_chunk(self, content: str, user_id: str, file_id: str,

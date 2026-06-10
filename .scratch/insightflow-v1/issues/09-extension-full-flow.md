@@ -1,6 +1,6 @@
 # 09 — 扩展 - 沉浸式阅读全链路串联
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

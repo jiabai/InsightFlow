@@ -33,9 +33,20 @@ DEFAULT_MAX_TOKENS = 6144
 
 
 class LLMGateway:
-    """Singleton LLM access point. One gateway, one seam."""
+    """Singleton LLM access point. One gateway, one seam.
 
-    def __init__(self) -> None:
+    Parameters
+    ----------
+    mock : bool
+        When True, returns preset responses without calling any external API.
+        Intended for tests and local development.
+    mock_response : str
+        The response text returned when mock=True. Defaults to a generic answer.
+    """
+
+    def __init__(self, mock: bool = False, mock_response: str = "") -> None:
+        self._mock: bool = mock
+        self._mock_response: str = mock_response or "This is a mock response from LLMGateway."
         self._api_url: str = os.getenv("LLM_API_URL", DEFAULT_API_URL)
         self._api_key: str = os.getenv("LLM_API_KEY", "")
         self._model: str = os.getenv("LLM_MODEL", DEFAULT_MODEL)
@@ -70,6 +81,8 @@ class LLMGateway:
         max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Synchronous query. Thin wrapper around the OpenAI SDK."""
+        if self._mock:
+            return self._build_mock_response(user_content)
         import asyncio
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(
@@ -92,6 +105,8 @@ class LLMGateway:
         max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Async query returning the raw completion model_dump."""
+        if self._mock:
+            return self._build_mock_response(user_content)
         client = self._get_client()
         try:
             completion = await client.chat.completions.create(
@@ -118,6 +133,10 @@ class LLMGateway:
         max_tokens: Optional[int] = None,
     ) -> AsyncIterator[str]:
         """Async generator that yields SSE-formatted JSON chunks."""
+        if self._mock:
+            yield f"data: {self._mock_response}\n\n"
+            yield "data: [DONE]\n\n"
+            return
         client = self._get_client()
         try:
             stream = await client.chat.completions.create(
@@ -136,3 +155,27 @@ class LLMGateway:
         except Exception as e:
             logger.error("LLM stream failed: %s", str(e), exc_info=True)
             raise
+
+    def _build_mock_response(self, user_content: str) -> Dict[str, Any]:
+        """Return a structured mock response resembling an OpenAI completion."""
+        return {
+            "id": "mock-completion-001",
+            "object": "chat.completion",
+            "created": 0,
+            "model": "mock-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": self._mock_response,
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": len(user_content.split()),
+                "completion_tokens": len(self._mock_response.split()),
+                "total_tokens": len(user_content.split()) + len(self._mock_response.split()),
+            },
+        }

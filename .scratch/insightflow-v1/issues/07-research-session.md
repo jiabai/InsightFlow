@@ -1,6 +1,6 @@
 # 07 — 研究会话
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

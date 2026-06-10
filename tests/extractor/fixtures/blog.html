@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Understanding Async/Await in JavaScript</title></head>
+<body>
+  <!-- Navigation -->
+  <nav class="main-nav">
+    <a href="/">Home</a>
+    <a href="/blog">Blog</a>
+    <a href="/about">About</a>
+  </nav>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="ad">Buy our JavaScript course! 50% off!</div>
+    <h3>推荐阅读</h3>
+    <ul>
+      <li>10 Tips for React Developers</li>
+      <li>Why TypeScript is the Future</li>
+    </ul>
+  </aside>
+
+  <!-- Main content -->
+  <main>
+    <article class="post-content">
+      <h1>Understanding Async/Await in JavaScript</h1>
+      <p>Async/await is a syntactic sugar built on top of Promises. It makes asynchronous code look and behave more like synchronous code.</p>
+      <h2>Why Async/Await?</h2>
+      <p>Before async/await, developers used callbacks and then Promise chains. These could lead to "callback hell" and hard-to-read code.</p>
+      <h2>Basic Syntax</h2>
+      <p>The <code>async</code> keyword before a function means the function always returns a Promise. The <code>await</code> keyword can only be used inside async functions.</p>
+      <pre><code>async function fetchData() {
+  const response = await fetch('/api/data');
+  return response.json();
+}</code></pre>
+      <h2>Error Handling</h2>
+      <p>With async/await, you can use try/catch blocks for error handling, just like synchronous code.</p>
+      <h2>Conclusion</h2>
+      <p>Async/await has become the standard way to handle asynchronous operations in modern JavaScript.</p>
+    </article>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>&copy; 2026 JS Blog. All rights reserved.</p>
+    <a href="/privacy">Privacy</a>
+    <a href="/terms">Terms</a>
+  </footer>
+</body>
+</html>

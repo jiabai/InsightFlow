@@ -1,6 +1,6 @@
 # 05 — 问题生成
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

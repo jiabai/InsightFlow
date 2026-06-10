@@ -1,6 +1,6 @@
 # 03 — 沉浸式阅读
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 

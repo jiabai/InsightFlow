@@ -1,6 +1,6 @@
 # 10 — 错误与边界
 
-Status: ready-for-agent
+Status: completed
 
 ## Parent
 
