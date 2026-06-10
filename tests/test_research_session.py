@@ -9,7 +9,7 @@ class TestResearchSession:
 
     async def test_mock_augment_returns_sources(self):
         """Mock mode should return preset search results."""
-        from be.llm_knowledge_processing.research_session import ResearchSession
+        from server.llm_knowledge_processing.research_session import ResearchSession
 
         session = ResearchSession(mock=True)
         result = await session.augment(
@@ -29,7 +29,7 @@ class TestResearchSession:
 
     async def test_mock_enriched_context_has_source_annotations(self):
         """Enriched context should contain source annotations."""
-        from be.llm_knowledge_processing.research_session import ResearchSession
+        from server.llm_knowledge_processing.research_session import ResearchSession
 
         session = ResearchSession(mock=True)
         result = await session.augment(
@@ -43,7 +43,7 @@ class TestResearchSession:
 
     async def test_real_mode_does_not_crash(self):
         """Real mode (no API keys) should return empty results gracefully."""
-        from be.llm_knowledge_processing.research_session import ResearchSession
+        from server.llm_knowledge_processing.research_session import ResearchSession
 
         session = ResearchSession(mock=False)
         result = await session.augment(

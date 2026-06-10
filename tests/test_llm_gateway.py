@@ -29,7 +29,7 @@ class TestLLMGatewayMock:
 
     def test_custom_mock_response(self):
         """A gateway with a custom mock_response returns that string."""
-        from be.llm_knowledge_processing.llm_gateway import LLMGateway
+        from server.llm_knowledge_processing.llm_gateway import LLMGateway
         gw = LLMGateway(mock=True, mock_response="Custom answer!")
         result = gw.query(user_content="Hi")
         assert result["choices"][0]["message"]["content"] == "Custom answer!"

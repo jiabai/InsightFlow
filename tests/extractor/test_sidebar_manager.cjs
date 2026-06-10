@@ -24,7 +24,7 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { SidebarManager } = require('../../src/fe/immersive/sidebarManager.cjs');
+const { SidebarManager } = require('../../src/extension/immersive/sidebarManager.cjs');
 
 function makeQuestions() {
   return [

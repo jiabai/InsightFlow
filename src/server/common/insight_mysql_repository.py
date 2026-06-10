@@ -11,9 +11,9 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy import select, delete
 from sqlalchemy.exc import SQLAlchemyError
 
-from be.common.models import Base, FileMetadata, Chunk, Question
-from be.common.repository import InsightRepository
-from be.common.exceptions import DatabaseError
+from server.common.models import Base, FileMetadata, Chunk, Question
+from server.common.repository import InsightRepository
+from server.common.exceptions import DatabaseError
 
 
 class InsightMySQLRepository(InsightRepository):

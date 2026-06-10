@@ -14,7 +14,7 @@ script_dir = os.path.dirname(__file__)
 project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
 sys.path.insert(0, project_root)
 
-from be.api_services.api_services_main import app
+from server.api_services.api_services_main import app
 
 def generate_openapi_spec():
     """

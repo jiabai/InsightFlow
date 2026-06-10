@@ -2,8 +2,8 @@ import io
 import os
 import oss2
 from starlette.concurrency import run_in_threadpool
-from be.common.storage_interface import StorageInterface
-from be.common.exceptions import StorageError
+from server.common.storage_interface import StorageInterface
+from server.common.exceptions import StorageError
 
 class OSSStorage(StorageInterface):
     """

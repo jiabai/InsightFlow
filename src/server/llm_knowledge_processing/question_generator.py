@@ -14,9 +14,9 @@ by interfacing with LLM services and database operations.
 import logging
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
-from be.common.repository import InsightRepository
-from be.llm_knowledge_processing.llm_client import LLMClient
-from be.llm_knowledge_processing.utils import (
+from server.common.repository import InsightRepository
+from server.llm_knowledge_processing.llm_client import LLMClient
+from server.llm_knowledge_processing.utils import (
     extract_json_from_llm_output,
     get_question_prompt,
     random_remove_question_mark,

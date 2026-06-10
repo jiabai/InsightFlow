@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 import aioredis
-from be.common.redis_manager import RedisManager
-from be.common.exceptions import RedisError
+from server.common.redis_manager import RedisManager
+from server.common.exceptions import RedisError
 
 @pytest.fixture
 def mock_redis_client():

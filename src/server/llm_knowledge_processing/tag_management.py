@@ -10,7 +10,7 @@ import re
 import logging
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
-from be.common.logger_config import setup_logging
+from server.common.logger_config import setup_logging
 
 logger = logging.getLogger(__name__)
 

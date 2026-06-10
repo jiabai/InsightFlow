@@ -24,8 +24,8 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { StatusTracker } = require('../../src/fe/immersive/statusTracker.cjs');
-const { RetryManager } = require('../../src/fe/immersive/retryManager.cjs');
+const { StatusTracker } = require('../../src/extension/immersive/statusTracker.cjs');
+const { RetryManager } = require('../../src/extension/immersive/retryManager.cjs');
 
 // -- StatusTracker --
 

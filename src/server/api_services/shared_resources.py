@@ -1,4 +1,4 @@
-# be/api_services/shared_resources.py
+# server/api_services/shared_resources.py
 """
 Shared resource lifecycle management for the API services.
 
@@ -29,13 +29,13 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from be.api_services.insight_logger import setup_logging, get_logger
-from be.common.insight_mysql_repository import InsightMySQLRepository
-from be.common.redis_manager import RedisManager
-from be.common.storage_interface import StorageInterface
-from be.common.oss_storage import OSSStorage
-from be.common.local_storage import LocalStorage
-from be.llm_knowledge_processing.llm_gateway import LLMGateway
+from server.api_services.insight_logger import setup_logging, get_logger
+from server.common.insight_mysql_repository import InsightMySQLRepository
+from server.common.redis_manager import RedisManager
+from server.common.storage_interface import StorageInterface
+from server.common.oss_storage import OSSStorage
+from server.common.local_storage import LocalStorage
+from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 
 async def init_resources(app: FastAPI):
@@ -110,7 +110,7 @@ def create_app(lifespan_handler=None):
 
     Use this factory to create isolated app instances for testing::
 
-        from be.api_services.shared_resources import create_app
+        from server.api_services.shared_resources import create_app
         test_app = create_app(lifespan_handler=None)
 
     When ``lifespan_handler`` is None, the app starts without connecting

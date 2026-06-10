@@ -1,8 +1,8 @@
 import os
 from nanoid import generate
 
-from be.common.database_manager import DatabaseManager, Chunk
-from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
+from server.common.database_manager import DatabaseManager, Chunk
+from server.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
 
 TEST_FILE = 'README.md'
 

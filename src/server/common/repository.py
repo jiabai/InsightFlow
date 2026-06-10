@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, List
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from be.common.models import FileMetadata, Chunk, Question
+from server.common.models import FileMetadata, Chunk, Question
 
 
 class InsightRepository(ABC):

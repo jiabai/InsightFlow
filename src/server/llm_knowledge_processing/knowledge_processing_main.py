@@ -8,9 +8,9 @@ FastAPI app.state).
 """
 import asyncio
 
-from be.common.insight_mysql_repository import InsightMySQLRepository
-from be.common.redis_manager import RedisManager
-from be.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
+from server.common.insight_mysql_repository import InsightMySQLRepository
+from server.common.redis_manager import RedisManager
+from server.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
 
 if __name__ == "__main__":
     import sys

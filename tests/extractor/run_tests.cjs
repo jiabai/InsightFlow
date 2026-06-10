@@ -45,7 +45,7 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { ContentExtractor } = require('../../src/fe/extractor/ContentExtractor.cjs');
+const { ContentExtractor } = require('../../src/extension/extractor/ContentExtractor.cjs');
 
 describe('Test 1: Blog article extraction', () => {
   const html = loadFixture('blog.html');

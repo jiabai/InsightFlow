@@ -25,7 +25,7 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { StateManager } = require('../../src/fe/immersive/stateManager.cjs');
+const { StateManager } = require('../../src/extension/immersive/stateManager.cjs');
 
 function makePageDOM(html) {
   return new JSDOM(html || `<!DOCTYPE html><html>

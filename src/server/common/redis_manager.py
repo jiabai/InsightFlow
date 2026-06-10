@@ -9,7 +9,7 @@ import os
 import asyncio
 
 import redis.asyncio as aioredis
-from be.common.exceptions import RedisError
+from server.common.exceptions import RedisError
 
 
 class RedisManager:

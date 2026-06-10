@@ -24,7 +24,7 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { ThemeEngine } = require('../../src/fe/immersive/themeEngine.cjs');
+const { ThemeEngine } = require('../../src/extension/immersive/themeEngine.cjs');
 
 describe('Test 1: Light theme generates CSS', () => {
   const css = ThemeEngine.generateCSS('light');

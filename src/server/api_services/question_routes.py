@@ -17,16 +17,16 @@ from fastapi import Depends, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from be.common.models import FileMetadata, Chunk
-from be.common.repository import InsightRepository
-from be.common.file_metadata_response import FileMetadataResponse
-from be.common.redis_manager import RedisManager
-from be.common.storage_interface import StorageInterface
-from be.common.exceptions import StorageError, DatabaseError, RedisError
-from be.api_services.shared_resources import get_logger
+from server.common.models import FileMetadata, Chunk
+from server.common.repository import InsightRepository
+from server.common.file_metadata_response import FileMetadataResponse
+from server.common.redis_manager import RedisManager
+from server.common.storage_interface import StorageInterface
+from server.common.exceptions import StorageError, DatabaseError, RedisError
+from server.api_services.shared_resources import get_logger
 
-from be.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
-from be.llm_knowledge_processing.llm_gateway import LLMGateway
+from server.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
+from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 running_services = set()
 background_tasks = set()

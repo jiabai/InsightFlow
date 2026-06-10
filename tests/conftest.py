@@ -16,14 +16,14 @@ from unittest.mock import MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-# Ensure src is on the Python path so 'be.*' imports work
+# Ensure src is on the Python path so 'server.*' imports work
 _src = os.path.join(os.path.dirname(__file__), "..", "src")
 _src = os.path.abspath(_src)
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from be.common.insight_memory_repository import InsightMemoryRepository
-from be.llm_knowledge_processing.llm_gateway import LLMGateway
+from server.common.insight_memory_repository import InsightMemoryRepository
+from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 
 # ---------------------------------------------------------------------------
@@ -77,20 +77,20 @@ def mock_storage():
 def _install_overrides(app, memory_repo, mock_llm, mock_redis, mock_storage):
     """Install dependency overrides for all three route modules."""
     # Lazy import to avoid triggering RedisManager → aioredis import chain
-    from be.api_services.file_routes import (
+    from server.api_services.file_routes import (
         get_database_manager as file_get_db_mgr,
         get_db as file_get_db,
         get_redis_manager as file_get_redis,
         get_storage_manager as file_get_storage,
     )
-    from be.api_services.question_routes import (
+    from server.api_services.question_routes import (
         get_database_manager as q_get_db_mgr,
         get_db as q_get_db,
         get_redis_manager as q_get_redis,
         get_storage_manager as q_get_storage,
         get_llm_gateway as q_get_llm,
     )
-    from be.api_services.llm_routes import (
+    from server.api_services.llm_routes import (
         get_database_manager as llm_get_db_mgr,
         get_db as llm_get_db,
         get_redis_manager as llm_get_redis,
@@ -129,13 +129,13 @@ def test_app(memory_repo, mock_llm_gateway, mock_redis, mock_storage):
 
     # Initialize the logger before importing any route modules, since
     # some of them call get_logger() at module level.
-    from be.api_services.insight_logger import setup_logging
+    from server.api_services.insight_logger import setup_logging
     setup_logging(app)
 
     # Lazy import to avoid triggering shared_resources module-level imports
-    from be.api_services.file_routes import router as file_router
-    from be.api_services.question_routes import router as question_router
-    from be.api_services.llm_routes import router as llm_router
+    from server.api_services.file_routes import router as file_router
+    from server.api_services.question_routes import router as question_router
+    from server.api_services.llm_routes import router as llm_router
 
     app.include_router(file_router)
     app.include_router(question_router)

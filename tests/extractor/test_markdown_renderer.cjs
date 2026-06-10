@@ -26,7 +26,7 @@ function describe(name, fn) {
 // Tests
 // ---------------------------------------------------------------------------
 
-const { MarkdownRenderer } = require('../../src/fe/immersive/markdownRenderer.cjs');
+const { MarkdownRenderer } = require('../../src/extension/immersive/markdownRenderer.cjs');
 
 describe('Test 1: Basic Markdown rendering', () => {
   const md = '# Heading\n\n**bold** and *italic*\n\n- item 1\n- item 2';

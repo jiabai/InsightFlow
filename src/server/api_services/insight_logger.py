@@ -5,7 +5,7 @@ Merges the three previous systems (fastapi_logger, logger_config, asyncio_logger
 into one module with a single setup_logging() entry point.
 
 Usage:
-    from be.api_services.insight_logger import get_logger, setup_logging
+    from server.api_services.insight_logger import get_logger, setup_logging
     setup_logging(app, log_file="api.log", level=logging.DEBUG)
     logger = get_logger()
 """

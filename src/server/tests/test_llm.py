@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from be.llm_knowledge_processing.llm_client import LLMClient
+from server.llm_knowledge_processing.llm_client import LLMClient
 
 
 

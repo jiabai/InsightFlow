@@ -9,7 +9,7 @@ class TestMarkdownSplitter:
 
     @pytest.fixture
     def splitter(self):
-        from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
+        from server.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
         return MarkdownSplitter()
 
     def test_splits_headings_into_chunks(self, splitter):

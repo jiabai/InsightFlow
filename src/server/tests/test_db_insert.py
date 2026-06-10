@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
-from be.common.database_manager import FileMetadata
+from server.common.database_manager import FileMetadata
 
 # 数据库配置
 DATABASE_URL = (

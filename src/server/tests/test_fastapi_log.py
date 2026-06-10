@@ -5,7 +5,7 @@ import sys
 # 将项目根目录添加到 sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from be.api_services.fastapi_logger import setup_logging
+from server.api_services.fastapi_logger import setup_logging
 import logging
 
 app = FastAPI()

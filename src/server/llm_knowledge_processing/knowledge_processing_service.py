@@ -17,13 +17,13 @@ import time
 import shutil
 import asyncio
 from typing import cast
-from be.common.models import Chunk
-from be.common.repository import InsightRepository
-from be.common.redis_manager import RedisManager
-from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
-from be.llm_knowledge_processing.question_generator import QuestionGenerator
-from be.llm_knowledge_processing.config_manager import ConfigManager
-from be.api_services.insight_logger import get_logger, with_task_id
+from server.common.models import Chunk
+from server.common.repository import InsightRepository
+from server.common.redis_manager import RedisManager
+from server.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
+from server.llm_knowledge_processing.question_generator import QuestionGenerator
+from server.llm_knowledge_processing.config_manager import ConfigManager
+from server.api_services.insight_logger import get_logger, with_task_id
 
 logger = get_logger()
 

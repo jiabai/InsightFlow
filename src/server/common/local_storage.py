@@ -2,8 +2,8 @@ import io
 import os
 import aiofiles
 import aiofiles.os
-from be.common.storage_interface import StorageInterface
-from be.common.exceptions import StorageError
+from server.common.storage_interface import StorageInterface
+from server.common.exceptions import StorageError
 
 class LocalStorage(StorageInterface):
     """

@@ -9,8 +9,8 @@ from typing import Optional, List
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock
 
-from be.common.models import FileMetadata, Chunk, Question
-from be.common.repository import InsightRepository
+from server.common.models import FileMetadata, Chunk, Question
+from server.common.repository import InsightRepository
 
 
 class InsightMemoryRepository(InsightRepository):

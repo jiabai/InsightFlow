@@ -9,7 +9,7 @@ class TestSyncQA:
 
     async def _seed_question(self, memory_repo):
         """Seed a chunk and question into the mock repository."""
-        from be.common.models import FileMetadata, Chunk, Question
+        from server.common.models import FileMetadata, Chunk, Question
 
         async with memory_repo.get_db() as db:
             # Create file metadata
