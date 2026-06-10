@@ -4,7 +4,7 @@ from zai import ZhipuAiClient
 from zai.types.web_search import SearchResultResp
 
 from .config import ZAI_API_TOKEN
-from .base_search_provider import BaseSearchProvider, SearchHit
+from .providers.base import BaseSearchProvider, SearchHit
 
 class ZhipuSearchProvider(BaseSearchProvider):
     name = "zhipu"

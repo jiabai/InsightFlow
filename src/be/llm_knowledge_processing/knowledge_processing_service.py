@@ -16,13 +16,14 @@ import os
 import time
 import shutil
 import asyncio
-from typing import Any, cast
-from be.common.database_manager import Chunk
-from be.api_services.shared_resources import db_manager, redis_manager
+from typing import cast
+from be.common.models import Chunk
+from be.common.repository import InsightRepository
+from be.common.redis_manager import RedisManager
 from be.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
 from be.llm_knowledge_processing.question_generator import QuestionGenerator
 from be.llm_knowledge_processing.config_manager import ConfigManager
-from be.llm_knowledge_processing.asyncio_logger import get_logger, with_task_id
+from be.api_services.insight_logger import get_logger, with_task_id
 
 logger = get_logger()
 
@@ -37,11 +38,16 @@ class KnowledgeProcessingService:
     - Managing file status through Redis
     - Storing generated questions in database
     """
-    def __init__(self, user_id: str, file_id: str):
-
+    def __init__(
+        self,
+        user_id: str,
+        file_id: str,
+        db_manager: InsightRepository,
+        redis_manager: RedisManager,
+    ):
         # 初始化配置
         self.config = ConfigManager()
-        # 初始化组件
+        # 通过构造函数注入依赖（不再从模块级全局变量获取）
         self.db_manager = db_manager
         self.redis_manager = redis_manager
         self.file_id = file_id
@@ -275,41 +281,6 @@ class KnowledgeProcessingService:
             tags
         )
         return generated_questions
-
-    async def _generate_questions_and_save(
-        self,
-        mysql_db,
-        db_chunks: list[Chunk],
-        user_id: str,
-        file_id: str,
-        p_config: dict[str, Any],
-        p_details: dict[str, Any]
-    ) -> int:
-        total_questions = 0
-        for chunk in db_chunks:
-            content = chunk.content
-            tags = []  # 如果需要，可以添加标签逻辑
-            generated_questions = await self._generate_questions(
-                content,
-                p_config,
-                p_details,
-                tags
-            )
-            if generated_questions:
-                saved_count = await self.db_manager.save_questions(
-                        mysql_db,
-                        user_id,
-                        file_id,
-                        generated_questions,
-                        cast(int, chunk.id)
-                    )
-                total_questions += saved_count
-                logger.info(
-                    "Successfully generated and saved %s questions for chunk %s.",
-                    saved_count,
-                    chunk.id
-                )
-        return total_questions
 
 def parse_stored_filename(stored_filename: str):
     """

@@ -1,18 +1,19 @@
 import time
+import asyncio
 from typing import Dict, Any
 from ai_sdk import openai, generate_text
 from ai_sdk.generate_text import GenerateTextResult
 
 from .config import QWEN_PROVIDER, QWEN_API_TOKEN, QWEN_MODEL_URL, TEMPERATURE
-from .system_prompt import build_system_prompt
-from .tools_web_search import build_web_search_tool, reset_search_state
+from .prompts import build_prompts
+from .search import build_web_search_tool, reset_search_state, ResearchSession
 
 def _compose_research_prompt(base_system: str, budget: int) -> str:
     """
-    在不修改 system_prompt.py 的前提下，为研究代理追加“停机/限次”硬规则。
+    在不修改 prompts.py 的前提下，为研究代理追加“停机/限次”硬规则。
     说明：
-    - 不替换原有 build_system_prompt，只做追加，避免丢失通用约束。
-    - 与 tools_web_search 的 duplicate_query/new_urls 信号配合，帮助模型在没有增量时停止继续搜索。
+    - 不替换原有 build_prompts，只做追加，避免丢失通用约束。
+    - 与 search 的 duplicate_query/new_urls 信号配合，帮助模型在没有增量时停止继续搜索。
     """
 
     research_rules = f"""
@@ -34,24 +35,29 @@ def _compose_research_prompt(base_system: str, budget: int) -> str:
 def execute_research_agent(
     topic: str, 
     plan_dict: Dict[str, Any], 
-    budget: int
+    budget: int,
+    session: ResearchSession | None = None,
 ) -> GenerateTextResult:
     """
-    执行研究代理，进行AI驱动的研究任务
+    执行研究代理，进行AI驱动的研究任务。
+
+    若传入 ResearchSession，搜索去重状态隔离在 session 内；
+    否则回退到模块级全局变量（向后兼容）。
     """
-    # 0) 每次任务开始前，清空搜索工具的会话状态（关键）
-    reset_search_state()
+    # 0) 每次任务开始前，清空搜索工具的会话状态
+    if session is None:
+        reset_search_state()
 
     # 1) 构造系统提示（先用原有的通用提示，再追加研究专用规则）
-    base_system  = build_system_prompt(
+    base_system  = build_prompts(
         today=time.strftime("%Y-%m-%d"),
         total_todos=budget,
         plan=plan_dict.get("plan", [])
     )
     system = _compose_research_prompt(base_system, budget)
 
-    # 2) 注册 WebSearch 工具（内部已切换为 web_search_with_guard）
-    add_tool = build_web_search_tool()
+    # 2) 注册 WebSearch 工具（传入 session 以隔离搜索状态）
+    add_tool = build_web_search_tool(session=session)
 
     # 执行研究代理
     result = generate_text(
@@ -69,3 +75,23 @@ def execute_research_agent(
     )
 
     return result
+
+
+async def execute_research_async(
+    topic: str,
+    plan_dict: Dict[str, Any],
+    budget: int,
+) -> GenerateTextResult:
+    """Async wrapper for FastAPI / asyncio environments.
+
+    Creates a fresh ResearchSession, delegates to execute_research_agent
+    via asyncio.to_thread, and ensures search state is properly scoped.
+    """
+    session = ResearchSession()
+    return await asyncio.to_thread(
+        execute_research_agent,
+        topic=topic,
+        plan_dict=plan_dict,
+        budget=budget,
+        session=session,
+    )

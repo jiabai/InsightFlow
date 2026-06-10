@@ -7,12 +7,12 @@ from typing import Optional, Any, List, Dict, Iterable, Set
 from ai_sdk import tool
 
 from .schemas import ArticleContent
-from .resilient_crawl import resilient_extract
+from .crawler import resilient_extract
 from .config import ZAI_PROVIDER, ZAI_API_TOKEN, ZAI_MODEL_URL
 
-from .zhipu_search_provider import ZhipuSearchProvider
-from .metaso_search_provider import MetasoSearchProvider
-from .base_search_provider import BaseSearchProvider, SearchHit
+from .providers.zhipu import ZhipuSearchProvider
+from .providers.metaso import MetasoSearchProvider
+from .providers.base import BaseSearchProvider, SearchHit
 
 MAX_TITLE_CHARS = int(os.getenv("WEBSEARCH_MAX_TITLE", "80"))
 MAX_SNIPPET_CHARS = int(os.getenv("WEBSEARCH_MAX_SNIPPET", "250"))
@@ -177,6 +177,44 @@ def web_search(
 _SEEN_URLS: Set[str] = set()
 _SEEN_QUERIES: Set[str] = set()
 
+
+class ResearchSession:
+    """Encapsulates per-research-task state.
+
+    Each call to execute_research_agent creates a new session, avoiding
+    cross-task contamination of search dedup state. This also makes the
+    module thread-safe for use in async FastAPI contexts.
+    """
+
+    def __init__(self) -> None:
+        self.seen_urls: Set[str] = set()
+        self.seen_queries: Set[str] = set()
+
+    def reset(self) -> None:
+        self.seen_urls.clear()
+        self.seen_queries.clear()
+
+    def is_duplicate_query(self, normalized: str) -> bool:
+        if normalized in self.seen_queries:
+            return True
+        self.seen_queries.add(normalized)
+        return False
+
+    def count_new_urls(self, urls: list[str]) -> int:
+        new = 0
+        for url in urls:
+            if url and url not in self.seen_urls:
+                self.seen_urls.add(url)
+                new += 1
+        return new
+
+
+# ---- backward-compatible module-level helpers (used by tests / scripts) ----
+def reset_search_state() -> None:
+    """Clear global search state (legacy; prefer ResearchSession per call)."""
+    _SEEN_URLS.clear()
+    _SEEN_QUERIES.clear()
+
 def _normalize_query(q: str) -> str:
     return " ".join((q or "").lower().split())
 
@@ -190,7 +228,8 @@ def reset_search_state() -> None:
 def web_search_with_guard(
     query: str,
     category: Optional[str] = None,
-    extract: bool = False
+    extract: bool = False,
+    session: Optional[ResearchSession] = None,
 ) -> Dict[str, Any]:
     """
     包装 web_search：
@@ -199,19 +238,25 @@ def web_search_with_guard(
     - 其它字段与 web_search 保持一致（hits/contents）
     """
     norm_q = _normalize_query(query)
-    duplicate_query = norm_q in _SEEN_QUERIES
-    _SEEN_QUERIES.add(norm_q)
+
+    if session is not None:
+        duplicate_query = session.is_duplicate_query(norm_q)
+    else:
+        duplicate_query = norm_q in _SEEN_QUERIES
+        _SEEN_QUERIES.add(norm_q)
 
     base = web_search(query=query, category=category, extract=extract) or {}
     hits = base.get("hits") or []
     new_urls = 0
-    for h in hits:
-        url = (h.get("url") or "").strip()
-        if not url:
-            continue
-        if url not in _SEEN_URLS:
-            _SEEN_URLS.add(url)
-            new_urls += 1
+
+    urls = [h.get("url", "").strip() for h in hits if (h.get("url") or "").strip()]
+    if session is not None:
+        new_urls = session.count_new_urls(urls)
+    else:
+        for u in urls:
+            if u not in _SEEN_URLS:
+                _SEEN_URLS.add(u)
+                new_urls += 1
 
     # 回传原始字段，并追加增量信号
     guarded = base.copy()
@@ -219,10 +264,11 @@ def web_search_with_guard(
     guarded["new_urls"] = new_urls
     return guarded
 
-def build_web_search_tool() -> Any:
+def build_web_search_tool(session: Optional[ResearchSession] = None) -> Any:
     """
     工具接口保持兼容：query 必填、category 可选。
     兼容性扩展：可选 count、providers（数组）参数；extract 默认为 True，与旧行为一致。
+    若传入 ResearchSession，搜索去重状态按 session 隔离.
     """
     return tool(
         name="webSearch",
@@ -246,6 +292,7 @@ def build_web_search_tool() -> Any:
         execute=lambda query, category=None: web_search_with_guard(
             query=query,
             category=category,
-            extract=False  # 默认不抽正文，保持轻量；如需正文可改 True
+            extract=False,
+            session=session,
         )
     )

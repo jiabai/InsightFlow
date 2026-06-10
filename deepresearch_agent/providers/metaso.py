@@ -2,7 +2,7 @@ import json
 from typing import List, Optional
 import requests
 
-from .base_search_provider import BaseSearchProvider, SearchHit
+from .providers.base import BaseSearchProvider, SearchHit
 from .config import METASO_API_KEY, METASO_BASE_URL
 
 class MetasoSearchProvider(BaseSearchProvider):

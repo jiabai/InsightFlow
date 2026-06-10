@@ -27,12 +27,12 @@ class ConfigManager:
         os.makedirs(self.upload_dir, exist_ok=True)
         os.makedirs(self.completed_dir, exist_ok=True)
 
-        # LLM 配置
+        # LLM 配置（从环境变量读取，不设默认密钥）
         self.llm_config = {
-            'provider': 'siliconflow',
-            'api_key': '***REDACTED-KEY***',
-            'base_url': 'https://api.siliconflow.cn/v1',
-            'model': 'Qwen/Qwen3-30B-A3B-Instruct-2507'
+            'provider': os.getenv('LLM_PROVIDER', 'siliconflow'),
+            'api_key': os.getenv('LLM_API_KEY'),
+            'base_url': os.getenv('LLM_API_URL', 'https://api.siliconflow.cn/v1'),
+            'model': os.getenv('LLM_MODEL', 'Qwen/Qwen3-30B-A3B-Instruct-2507')
         }
 
         # 项目配置

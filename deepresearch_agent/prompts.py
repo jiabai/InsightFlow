@@ -93,10 +93,10 @@ SYSTEM_INSTRUCTIONS_CN = """
 {plan}
 """
 
-def build_system_prompt(today: str, total_todos: int, plan: list[dict[str, object]]) -> str:
+def build_prompts(today: str, total_todos: int, plan: list[dict[str, object]]) -> str:
     return SYSTEM_INSTRUCTIONS_CN.format(today=today, totalTodos=total_todos, plan=plan)
 
-def build_research_system_prompt(budget: int) -> str:
+def build_research_prompts(budget: int) -> str:
     return f"""
 你的角色：资深研究分析代理。
 目标：围绕给定主题，快速检索关键信息并产出清晰的最终报告。

@@ -12,8 +12,6 @@ from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 from be.common.logger_config import setup_logging
 
-# 初始化日志
-setup_logging()
 logger = logging.getLogger(__name__)
 
 

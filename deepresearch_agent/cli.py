@@ -19,8 +19,8 @@ from .config import (
 )
 
 from .schemas import Articles
-from .tools_web_search import extract_contents
-from .plan_service import generate_research_plan_and_budget
+from .search import extract_contents
+from .plan import generate_research_plan_and_budget
 from .research_agent import execute_research_agent
 
 def safe_slug(name: str) -> str:
