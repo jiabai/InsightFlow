@@ -14,11 +14,11 @@ export default defineConfig({
 		default_locale: 'zh',
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
-		version: '1.0.0',
+		version: '0.0.1',
 		permissions: ['activeTab', 'scripting', 'storage', 'tabs', 'notifications'],
 		host_permissions: ['<all_urls>', 'about:blank'],
 		content_security_policy: {
-			extension_pages: "script-src 'self' 'wasm-unsafe-eval' http://localhost:5174 http://localhost:3001; object-src 'self'"
+			extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
 		},
 		action: {
 			default_icon: {
