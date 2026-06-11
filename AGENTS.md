@@ -6,7 +6,7 @@ Issues are tracked as local markdown files under `.scratch/<feature>/`. See `doc
 
 ### Triage labels
 
-Five canonical roles with default label strings. See `docs/agents/triage-labels.md`.
+Five canonical roles with Chinese label strings（待评估 / 待补充 / Agent就绪 / 人工就绪 / 不予处理）. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

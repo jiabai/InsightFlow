@@ -10,7 +10,7 @@ Usage in routes:
     @router.post("/...")
     async def handler(
         db=Depends(get_database_manager),
-        redis=Depends(get_redis_manager),
+        status_store=Depends(get_status_store),
         storage=Depends(get_storage_manager),
         llm=Depends(get_llm_gateway),
     ): ...
@@ -19,7 +19,7 @@ Usage in background services (constructor injection):
     service = KnowledgeProcessingService(
         user_id=..., file_id=...,
         db_manager=request.app.state.db_manager,
-        redis_manager=request.app.state.redis_manager,
+        status_store=request.app.state.status_store,
     )
 """
 
@@ -30,28 +30,38 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from server.api_services.insight_logger import setup_logging, get_logger
-from server.common.insight_mysql_repository import InsightMySQLRepository
-from server.common.redis_manager import RedisManager
+from server.common.insight_sqlite_repository import InsightSQLiteRepository
+from server.common.file_status_store import FileStatusStore
 from server.common.storage_interface import StorageInterface
 from server.common.oss_storage import OSSStorage
 from server.common.local_storage import LocalStorage
 from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 
+def _get_log_level() -> int:
+    raw_level = os.getenv("INSIGHTFLOW_LOG_LEVEL", "DEBUG").upper()
+    return getattr(logging, raw_level, logging.DEBUG)
+
+
+def _get_log_console_enabled() -> bool:
+    return os.getenv("INSIGHTFLOW_LOG_CONSOLE", "0").lower() in ("1", "true", "yes", "on")
+
+
 async def init_resources(app: FastAPI):
-    """Initialise database, Redis, storage, and LLM gateway during startup."""
+    """Initialise database, file status store, storage, and LLM gateway."""
     logger = get_logger()
 
-    db_manager = InsightMySQLRepository()
+    db_manager = InsightSQLiteRepository()
     await db_manager.initialize()
     await db_manager.init_db()
     app.state.db_manager = db_manager
     logger.debug("Database initialized.")
 
-    redis_manager = RedisManager()
-    await redis_manager.initialize()
-    app.state.redis_manager = redis_manager
-    logger.debug("Redis initialized.")
+    status_store = FileStatusStore()
+    await status_store.initialize()
+    app.state.status_store = status_store
+    app.state.redis_manager = status_store
+    logger.debug("Local file status store initialized.")
 
     storage_type = os.getenv("STORAGE_TYPE", "local")
     if storage_type == "oss":
@@ -76,7 +86,7 @@ async def init_resources(app: FastAPI):
 
 
 async def close_resources(app: FastAPI):
-    """Gracefully release database and Redis resources."""
+    """Gracefully release database and status store resources."""
     logger = get_logger()
 
     db_manager = getattr(app.state, "db_manager", None)
@@ -84,16 +94,15 @@ async def close_resources(app: FastAPI):
         await db_manager.dispose_engine()
         logger.debug("Database engine disposed.")
 
-    redis_manager = getattr(app.state, "redis_manager", None)
-    if redis_manager is not None and redis_manager.redis_client:
-        await redis_manager.close_redis()
-        logger.debug("Redis connection closed.")
+    status_store = getattr(app.state, "status_store", None)
+    if status_store is not None:
+        await status_store.close()
+        logger.debug("Local file status store closed.")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan handler for startup and shutdown."""
-    setup_logging(app, log_file="api_services.log", level=logging.DEBUG)
     logger = get_logger()
 
     await init_resources(app)
@@ -117,7 +126,21 @@ def create_app(lifespan_handler=None):
     to any databases or external services — suitable for unit tests
     that inject mock dependencies via ``app.dependency_overrides``.
     """
-    return FastAPI(lifespan=lifespan_handler)
+    application = FastAPI(lifespan=lifespan_handler)
+    log_level = _get_log_level()
+    log_to_console = _get_log_console_enabled()
+    logger = setup_logging(
+        application,
+        log_file="api_services.log",
+        level=log_level,
+        use_console=log_to_console,
+    )
+    logger.info(
+        "Logging configured level=%s console=%s",
+        logging.getLevelName(log_level),
+        log_to_console,
+    )
+    return application
 
 
 app = create_app(lifespan_handler=lifespan)

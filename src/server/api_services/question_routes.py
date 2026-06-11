@@ -20,9 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.common.models import FileMetadata, Chunk
 from server.common.repository import InsightRepository
 from server.common.file_metadata_response import FileMetadataResponse
-from server.common.redis_manager import RedisManager
+from server.common.file_status_store import FileStatusStore
 from server.common.storage_interface import StorageInterface
-from server.common.exceptions import StorageError, DatabaseError, RedisError
+from server.common.exceptions import StorageError, DatabaseError, StatusStoreError
 from server.api_services.shared_resources import get_logger
 
 from server.llm_knowledge_processing.knowledge_processing_service import KnowledgeProcessingService
@@ -44,9 +44,9 @@ async def get_db(request: Request):
     async with db_mgr.get_db() as db:
         yield db
 
-async def get_redis_manager(request: Request) -> RedisManager:
-    """Dependency that returns the shared RedisManager instance."""
-    return request.app.state.redis_manager
+async def get_status_store(request: Request) -> FileStatusStore:
+    """Dependency that returns the shared file status store instance."""
+    return request.app.state.status_store
 
 async def get_storage_manager(request: Request) -> StorageInterface:
     """Dependency that returns the shared StorageInterface instance."""
@@ -91,7 +91,7 @@ async def generate_questions(
     file_id: str,
     request: Request,
     db_mgr: InsightRepository = Depends(get_database_manager),
-    redis_mgr: RedisManager = Depends(get_redis_manager),
+    status_store: FileStatusStore = Depends(get_status_store),
 ):
     """
     Generate questions for a specific file asynchronously.
@@ -114,11 +114,18 @@ async def generate_questions(
         Use the /questions/{file_id} endpoint to retrieve generated questions.
     """
     logger = get_logger()
+    logger.debug(
+        "questions generate request user_id=%s file_id=%s running=%s background_tasks=%d",
+        user_id,
+        file_id,
+        file_id in running_services,
+        len(background_tasks),
+    )
     service = KnowledgeProcessingService(
         user_id=user_id,
         file_id=file_id,
         db_manager=db_mgr,
-        redis_manager=redis_mgr,
+        status_store=status_store,
     )
 
     if file_id not in running_services:
@@ -149,8 +156,15 @@ async def generate_questions(
 
             return {"message": f"Processing request issued for file_id: {file_id}"}
         else:
+            logger.warning(
+                "questions generate backpressure file_id=%s background_tasks=%d max=%d",
+                file_id,
+                len(background_tasks),
+                MAX_CONCURRENT_TASKS,
+            )
             return {"message": f"Max concurrent tasks reached, processing for file_id: {file_id}"}
     else:
+        logger.info("questions generate already running file_id=%s", file_id)
         return {"message": f"Processing already started for file_id: {file_id}"}
 
 def dump_asyncio_tasks(prefix: str = "") -> None:
@@ -172,12 +186,12 @@ def dump_asyncio_tasks(prefix: str = "") -> None:
 async def get_questions_by_file(
     file_id: str,
     db_mgr: InsightRepository = Depends(get_database_manager),
-    redis_mgr: RedisManager = Depends(get_redis_manager)
+    status_store: FileStatusStore = Depends(get_status_store)
 ):
     """
     Retrieve all questions associated with a specific file.
 
-    This endpoint checks if file processing is completed via Redis status,
+    This endpoint checks if file processing is completed via local status,
     then fetches all chunks associated with the file and their corresponding questions
     from the database.
 
@@ -202,34 +216,39 @@ async def get_questions_by_file(
     logger = get_logger()
     try:
         # 首先检查文件状态
-        status = await redis_mgr.get_file_status(file_id)
+        logger.debug("questions fetch start file_id=%s", file_id)
+        status = await status_store.get_file_status(file_id)
         if status != "Completed":
-            raise RedisError(f"File processing not completed, current status: {status}")
-        logger.debug("File processing completed, status: %s", status)
+            raise StatusStoreError(f"File processing not completed, current status: {status}")
+        logger.debug("questions fetch status file_id=%s status=%s", file_id, status)
 
         # 获取文件关联的所有chunks
-        chunks: List[Chunk] = await db_mgr.get_chunks_by_file_id(db_mgr, file_id)
-        if not chunks:
-            raise DatabaseError(f"No chunks found for file_id {file_id}")
-        logger.debug("Found %d chunks for file_id %s", len(chunks), file_id)
+        async with db_mgr.get_db() as db:
+            chunks: List[Chunk] = await db_mgr.get_chunks_by_file_id(db, file_id)
+            if not chunks:
+                raise DatabaseError(f"No chunks found for file_id {file_id}")
+            logger.debug("questions fetch chunks file_id=%s chunk_count=%d", file_id, len(chunks))
         # 收集所有问题
-        all_questions = []
-        for chunk in chunks:
-            questions = await db_mgr.get_questions_by_chunk_id(db_mgr, chunk.id)
-            if not questions:
-                raise DatabaseError(f"No questions found for chunk_id {chunk.id}")
-            all_questions.extend([{
-                "question_id": q.id,
-                "question": q.question,
-                "label": q.label,
-                "chunk_id": chunk.id
-            } for q in questions])
-        logger.debug("Found %d questions for file_id %s", len(all_questions), file_id)
+            all_questions = []
+            for chunk in chunks:
+                questions = await db_mgr.get_questions_by_chunk_id(db, chunk.id)
+                if not questions:
+                    raise DatabaseError(f"No questions found for chunk_id {chunk.id}")
+                all_questions.extend([{
+                    "question_id": q.id,
+                    "question": q.question,
+                    "label": q.label,
+                    "chunk_id": chunk.id
+                } for q in questions])
+        logger.debug("questions fetch result file_id=%s question_count=%d", file_id, len(all_questions))
         return {"file_id": file_id, "questions": all_questions}
     except DatabaseError as e:
-        logger.error("Failed to get questions for file_id %s: %s", file_id, str(e))
+        logger.error("questions fetch database error file_id=%s error=%s", file_id, str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e
-    except RedisError as e:
-        logger.error("Failed to get file status from Redis: %s", str(e))
+    except StatusStoreError as e:
+        logger.error("questions fetch status error file_id=%s error=%s", file_id, str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e
+
+
+get_redis_manager = get_status_store
 

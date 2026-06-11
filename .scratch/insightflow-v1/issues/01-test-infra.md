@@ -21,7 +21,7 @@ Status: completed
 - [ ] 运行 `pytest tests/` 全部通过（即使只有一个健康检查测试）
 - [ ] `InsightMemoryRepository` 可正确初始化并使用
 - [ ] `LLMGateway` mock 模式可返回预设响应
-- [ ] 测试配置与生产配置隔离（不依赖真实 MySQL/Redis/外部 LLM API）
+- [ ] 测试配置与生产配置隔离（不依赖真实 SQLite 文件/本地状态文件/外部 LLM API）
 
 ## Blocked by
 

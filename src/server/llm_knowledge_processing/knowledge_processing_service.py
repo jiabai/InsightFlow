@@ -6,7 +6,7 @@ It includes the KnowledgeProcessingService class which handles:
 - Monitoring upload directories for new markdown files
 - Processing and splitting markdown content into chunks
 - Generating questions from content using LLM
-- Managing file status through Redis
+- Managing file status through the local status store
 - Storing generated questions in database
 
 The module is part of the insight-flow backend system and works with markdown files
@@ -16,16 +16,17 @@ import os
 import time
 import shutil
 import asyncio
+import logging
 from typing import cast
 from server.common.models import Chunk
 from server.common.repository import InsightRepository
-from server.common.redis_manager import RedisManager
+from server.common.file_status_store import FileStatusStore
 from server.llm_knowledge_processing.markdown_splitter import MarkdownSplitter
 from server.llm_knowledge_processing.question_generator import QuestionGenerator
 from server.llm_knowledge_processing.config_manager import ConfigManager
-from server.api_services.insight_logger import get_logger, with_task_id
+from server.api_services.insight_logger import with_task_id
 
-logger = get_logger()
+logger = logging.getLogger("insightflow")
 
 class KnowledgeProcessingService:
     """
@@ -35,7 +36,7 @@ class KnowledgeProcessingService:
     - Monitoring upload directories for new markdown files
     - Processing and splitting markdown content into chunks
     - Generating questions from content using LLM
-    - Managing file status through Redis
+    - Managing file status through the local status store
     - Storing generated questions in database
     """
     def __init__(
@@ -43,13 +44,13 @@ class KnowledgeProcessingService:
         user_id: str,
         file_id: str,
         db_manager: InsightRepository,
-        redis_manager: RedisManager,
+        status_store: FileStatusStore,
     ):
         # 初始化配置
         self.config = ConfigManager()
         # 通过构造函数注入依赖（不再从模块级全局变量获取）
         self.db_manager = db_manager
-        self.redis_manager = redis_manager
+        self.status_store = status_store
         self.file_id = file_id
         self.user_id = user_id
 
@@ -59,7 +60,7 @@ class KnowledgeProcessingService:
         Main entry point to start the knowledge processing service.
         
         This method:
-        1. Initializes required components (database and Redis connections)
+        1. Initializes required components (database and status store)
         2. Starts polling the upload directory for new files to process
         
         The service will continue running until explicitly stopped.
@@ -69,25 +70,25 @@ class KnowledgeProcessingService:
 
     async def initialize(self):
         """
-        Initialize database and Redis connections.
+        Initialize database and status store resources.
 
         This method:
         1. Initializes the database manager and creates required tables
-        2. Establishes connection to Redis server
+        2. Initializes the local file status store
 
         The initialization is required before the service can begin processing files.
         """
         await self.db_manager.initialize()
         await self.db_manager.init_db()
-        await self.redis_manager.initialize()
+        await self.status_store.initialize()
 
     async def shutdown(self):
         """
-        Gracefully shuts down the service by closing database and Redis connections.
+        Gracefully shuts down the service by closing database and status resources.
 
         This method:
         1. Disposes of the database engine connection
-        2. Closes the Redis connection
+        2. Closes the status store
 
         Should be called when terminating the service to ensure proper cleanup of resources.
         """
@@ -157,31 +158,31 @@ class KnowledgeProcessingService:
 
         This method:
         1. Retrieves file metadata and IDs from database
-        2. Updates Redis status to 'Processing'
+        2. Updates status to 'Processing'
         3. Reads and validates the file content
         4. Splits content into chunks
         5. Generates questions for each chunk
-        6. Updates Redis status to 'Completed' when done
-        7. Updates Redis status to 'Failed' if errors occur
+        6. Updates status to 'Completed' when done
+        7. Updates status to 'Failed' if errors occur
 
-        The file processing status is tracked in Redis throughout the operation.
+        The file processing status is tracked in the local status store.
         """
         user_id, file_id, original_filename = parse_stored_filename(stored_filename)
 
-        async with self.db_manager.get_db() as mysql_db:
+        async with self.db_manager.get_db() as db:
             try:
                 # 1. 获得id和文件名
                 file_id, original_filename = await self._get_file_metadata_and_ids(
-                    mysql_db,
+                    db,
                     file_id
                 )
                 if file_id is None:
                     return False
                 logger.debug("Processing file '%s' (File ID: %s)", original_filename, file_id)
 
-                # 2. 更新Redis状态为 'Processing'
-                await self.redis_manager.set_file_status(file_id, "Processing")
-                logger.debug("Redis status updated to 'Processing'.")
+                # 2. 更新本地状态为 'Processing'
+                await self.status_store.set_file_status(file_id, "Processing")
+                logger.debug("File status updated to 'Processing'.")
 
                 # 3. 读取和分割Markdown文件，得到chunks
                 content = await self._read_and_validate_file(file_path, file_id)
@@ -196,7 +197,7 @@ class KnowledgeProcessingService:
                 logger.debug("File '%s' split into %s chunks.", original_filename, len(chunks))
                 if chunks:
                     db_chunks = await self.db_manager.save_chunks(
-                        mysql_db,
+                        db,
                         chunks,
                         user_id,
                         file_id,
@@ -208,8 +209,8 @@ class KnowledgeProcessingService:
             except (IOError, ValueError, RuntimeError, asyncio.CancelledError) as e:
                 logger.error("Error processing file '%s': %s", stored_filename, e, exc_info=True) 
                 if file_id:
-                    await self.redis_manager.set_file_status(file_id, "Failed")
-                    logger.debug("Redis status updated to 'Failed'.")  
+                    await self.status_store.set_file_status(file_id, "Failed")
+                    logger.debug("File status updated to 'Failed'.")
                 return False
             # 4. 生成问题
             if chunks:
@@ -224,22 +225,22 @@ class KnowledgeProcessingService:
                         []
                     )
                     if generated_questions:
-                        async with self.db_manager.get_db() as mysql_db:
+                        async with self.db_manager.get_db() as db:
                             saved_count = await self.db_manager.save_questions(
-                                mysql_db, user_id, file_id, generated_questions, cast(int, chunk.id)
+                                db, user_id, file_id, generated_questions, cast(int, chunk.id)
                             )
                             total_questions += saved_count
-            # 5. 更新Redis状态为 'Completed'
-            await self.redis_manager.set_file_status(file_id, "Completed")
+            # 5. 更新本地状态为 'Completed'
+            await self.status_store.set_file_status(file_id, "Completed")
             logger.debug(
-                "File '%s' processing completed, Redis status updated to 'Completed'.",
+                "File '%s' processing completed, status updated to 'Completed'.",
                 original_filename
             )
         return True
 
-    async def _get_file_metadata_and_ids(self, mysql_db, file_id: str):
+    async def _get_file_metadata_and_ids(self, db, file_id: str):
         file_metadata = await self.db_manager.get_file_metadata_by_file_id(
-            mysql_db,
+            db,
             file_id
         )
         if not file_metadata:
@@ -256,7 +257,7 @@ class KnowledgeProcessingService:
         file_size = os.path.getsize(file_path)
         if file_size > 64 * 1024 * 1024:  # 64MB in bytes
             logger.error("File %s exceeds 64MB limit. Skipping.", file_id)
-            await self.redis_manager.set_file_status(file_id, "Failed")
+            await self.status_store.set_file_status(file_id, "Failed")
             return None
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()

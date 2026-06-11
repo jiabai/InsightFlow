@@ -8,6 +8,6 @@ export interface QuestionItem {
 
 // 问题响应接口
 export interface QuestionResponse {
-  content_id: string;
+  file_id: string;
   questions: QuestionItem[];
 }

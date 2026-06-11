@@ -6,6 +6,10 @@ class DatabaseError(Exception):
     """Custom exception for database-related errors."""
     pass
 
-class RedisError(Exception):
-    """Custom exception for Redis-related errors."""
+class StatusStoreError(Exception):
+    """Custom exception for file status store errors."""
+    pass
+
+class RedisError(StatusStoreError):
+    """Backward-compatible status store exception alias."""
     pass

@@ -1,12 +1,68 @@
 import { similarity } from '@/utils/stringUtils';
 import type { QuestionResponse } from '@/lib/questionTypes';
 import type { UploadResult } from '@/lib/uploadResult';
-import type { ContentStatusResponse, ContentHistoryItem, StreamChunk } from '@/lib/apiTypes';
+import type { ContentHistoryItem, FileStatusResponse, StreamChunk } from '@/lib/apiTypes';
 import { generateUserId, sha256 } from '@/utils/stringUtils';
+
+// 从 src/.env 读取后端 API 地址；未配置时默认连接本地开发服务。
+const API_DEBUG_PREFIX = '[InsightFlow:api]';
+const REQUEST_ID_HEADER = 'X-InsightFlow-Request-Id';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+apiDebug('api:base-url', { baseUrl: API_BASE_URL });
 
 export interface GenerateAnswerResponse {
   answer: string;
   reasoning_content?: string | null;
+}
+
+function serializeError(error: unknown): { message: string; stack?: string } {
+  if (error instanceof Error) {
+    return { message: error.message, stack: error.stack };
+  }
+  return { message: String(error) };
+}
+
+function sanitizeDebugDetails(details: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(details)) {
+    if ((key === 'content' || key === 'markdownContent' || key === 'text') && typeof value === 'string') {
+      sanitized[`${key}Length`] = value.length;
+      continue;
+    }
+    sanitized[key] = value;
+  }
+
+  return sanitized;
+}
+
+function apiDebug(event: string, details: Record<string, unknown> = {}): void {
+  console.info(API_DEBUG_PREFIX, event, sanitizeDebugDetails(details));
+}
+
+function apiDebugError(event: string, error: unknown, details: Record<string, unknown> = {}): void {
+  console.error(API_DEBUG_PREFIX, event, {
+    ...sanitizeDebugDetails(details),
+    error: serializeError(error),
+  });
+}
+
+function createApiRequestId(): string {
+  return `api-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeRequestId(requestId?: string): string {
+  return requestId && requestId.trim() ? requestId : createApiRequestId();
+}
+
+function withRequestIdHeaders(
+  requestId: string,
+  headers?: HeadersInit
+): HeadersInit {
+  return {
+    ...(headers as Record<string, string> | undefined),
+    [REQUEST_ID_HEADER]: requestId,
+  };
 }
 
 // 定义API端点类型
@@ -33,8 +89,10 @@ function executeAPICall(
   endpoint: ApiEndpoint,
   data: GenerateQuestionParams | GenerateAnswerParams,
   onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void,
-  onProgress?: (partialAnswer: string) => void
+  onProgress?: (partialAnswer: string) => void,
+  requestId?: string
 ): Promise<QuestionResponse | GenerateAnswerResponse> {
+  const effectiveRequestId = normalizeRequestId(requestId);
   return new Promise((resolve, reject) => {
     if (endpoint === 'generate-questions') {
       // 立即执行异步函数以支持await
@@ -42,7 +100,11 @@ function executeAPICall(
         try {
           // 调用uploadMarkdownContent方法
           if ('text' in data) {
-            const questionResponse: QuestionResponse = await uploadMarkdownContent(data.text, onPollIntervalCreated);
+            const questionResponse: QuestionResponse = await uploadMarkdownContent(
+              data.text,
+              onPollIntervalCreated,
+              effectiveRequestId
+            );
             resolve(questionResponse);
           } else {
             reject(new Error('无效的参数: 缺少text字段'));
@@ -61,7 +123,8 @@ function executeAPICall(
         const answerResponse: GenerateAnswerResponse = await llmQueryStream(
           data.question_id,
           data.chunk_id,
-          onProgress
+          onProgress,
+          effectiveRequestId
         );
         resolve(answerResponse);
       } else {
@@ -83,9 +146,16 @@ function executeAPICall(
  */
 export function generateQuestion(
   text: string,
-  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void
+  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void,
+  requestId?: string
 ): Promise<QuestionResponse> {
-  return executeAPICall('generate-questions', { text }, onPollIntervalCreated) as Promise<QuestionResponse>;
+  return executeAPICall(
+    'generate-questions',
+    { text },
+    onPollIntervalCreated,
+    undefined,
+    requestId
+  ) as Promise<QuestionResponse>;
 }
 
 /**
@@ -105,19 +175,20 @@ export function generateAnswer(
 export async function llmQueryStream(
   question_id: number,
   chunk_id: number,
-  onProgress?: (partialAnswer: string) => void
+  onProgress?: (partialAnswer: string) => void,
+  requestId: string = normalizeRequestId()
 ): Promise<GenerateAnswerResponse> {
-  console.log('🔄 开始流式查询:', { question_id, chunk_id: chunk_id });
+  console.log('🔄 开始流式查询:', { question_id, chunk_id: chunk_id, requestId });
   
   try {
     const response = await fetchWithTimeout(
-      'http://39.107.59.41:18080/llm/query/stream',
+      `${API_BASE_URL}/llm/query/stream`,
       {
         method: 'POST',
-        headers: {
+        headers: withRequestIdHeaders(requestId, {
           'Content-Type': 'application/json',
           'Accept': 'text/event-stream',
-        },
+        }),
         body: JSON.stringify({
           question_id,
           chunk_id,
@@ -366,20 +437,26 @@ function parseEnhancedResponse(result: any): GenerateAnswerResponse {
   }
 }
 /**
- * 内容状态轮询函数
- * @param contentId 内容ID
+ * 文件状态轮询函数
+ * @param fileId 文件ID
  * @param onCompleted 完成回调
  * @param onFailed 失败回调
  * @param interval 轮询间隔
  * @param onIntervalCreated 轮询创建回调
  */
-export async function pollContentStatus(
-  contentId: string,
-  onCompleted: (contentId: string) => Promise<void>,
-  onFailed?: () => void,
+export async function pollFileStatus(
+  fileId: string,
+  onCompleted: (fileId: string) => Promise<void>,
+  onFailed?: (error: Error) => void,
   interval: number = 3000,
-  onIntervalCreated?: (intervalId: ReturnType<typeof setInterval>) => void
+  onIntervalCreated?: (intervalId: ReturnType<typeof setInterval>) => void,
+  requestId?: string
 ) {
+  if (!fileId) {
+    throw new Error('缺少 file_id，无法检查文件处理状态');
+  }
+  requestId = normalizeRequestId(requestId);
+
   const maxAttempts = 60;
   let attempts = 0;
   
@@ -387,51 +464,101 @@ export async function pollContentStatus(
     attempts++;
     
     try {
+      apiDebug('file-status:poll', {
+        requestId,
+        fileId,
+        attempt: attempts,
+        maxAttempts,
+      });
+
       const statusResponse = await fetchWithTimeout(
-        `http://39.107.59.41:18080/content_status/${contentId}`,
-        { method: 'GET' },
+        `${API_BASE_URL}/file_status/${fileId}`,
+        {
+          method: 'GET',
+          headers: withRequestIdHeaders(requestId),
+        },
         5000
       );
 
       if (!statusResponse.ok) {
-        if (attempts >= maxAttempts) {
-          clearInterval(intervalId);
-          console.error(`内容状态检查超时 (${maxAttempts * 3}秒)`);
-          onFailed?.();
-        }
+        clearInterval(intervalId);
+        const errorText = await statusResponse.text().catch(() => '无法获取错误详情');
+        apiDebugError('file-status:error', new Error(errorText), {
+          requestId,
+          fileId,
+          attempt: attempts,
+          httpStatus: statusResponse.status,
+        });
+        onFailed?.(new Error(`文件状态检查失败: ${statusResponse.status} ${errorText}`));
         return;
       }
 
-      const statusResult = await statusResponse.json();
+      const statusResult = await statusResponse.json() as FileStatusResponse;
+      apiDebug('file-status:poll', {
+        requestId,
+        fileId,
+        attempt: attempts,
+        httpStatus: statusResponse.status,
+        status: statusResult.status,
+      });
       
       switch (statusResult.status) {
         case 'Completed':
           clearInterval(intervalId);
-          await onCompleted(contentId);
+          apiDebug('file-status:completed', {
+            requestId,
+            fileId,
+            attempt: attempts,
+          });
+          await onCompleted(fileId);
           break;
           
         case 'Failed':
           clearInterval(intervalId);
           console.error('内容处理失败:', statusResult);
-          onFailed?.();
+          apiDebug('file-status:failed', {
+            requestId,
+            fileId,
+            attempt: attempts,
+          });
+          onFailed?.(new Error('文件处理失败'));
           break;
           
         case 'Processing':
         case 'Pending':
           if (attempts >= maxAttempts) {
             clearInterval(intervalId);
-            onFailed?.();
+            apiDebugError('file-status:error', new Error('File status polling timed out'), {
+              requestId,
+              fileId,
+              attempt: attempts,
+              status: statusResult.status,
+            });
+            onFailed?.(new Error(`文件状态检查超时 (${maxAttempts * 3}秒)`));
           }
           break;
           
         default:
+          if (attempts >= maxAttempts) {
+            clearInterval(intervalId);
+            apiDebugError('file-status:error', new Error(`Unknown file status: ${statusResult.status}`), {
+              requestId,
+              fileId,
+              attempt: attempts,
+              status: statusResult.status,
+            });
+            onFailed?.(new Error(`未知文件状态: ${statusResult.status}`));
+          }
           break;
       }
     } catch (error) {
-      if (attempts >= maxAttempts) {
-        clearInterval(intervalId);
-        onFailed?.();
-      }
+      clearInterval(intervalId);
+      apiDebugError('file-status:error', error, {
+        requestId,
+        fileId,
+        attempt: attempts,
+      });
+      onFailed?.(error instanceof Error ? error : new Error(String(error)));
     }
   }, interval);
 
@@ -445,12 +572,18 @@ export async function pollContentStatus(
  */
 export async function uploadMarkdownContent(
   markdownContent: string,
-  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void
+  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void,
+  requestId?: string
 ): Promise<QuestionResponse> {
   const MAX_RETRIES = 2;
   const RETRY_DELAY = 1000;
   
   try {
+    requestId = normalizeRequestId(requestId);
+    if (!markdownContent.trim()) {
+      throw new Error('没有可上传的文本内容');
+    }
+
     const userId = generateUserId();
     const hashedUserIdHex = await sha256(userId);
 
@@ -458,32 +591,49 @@ export async function uploadMarkdownContent(
     const formData = new FormData();
     formData.append('file', blob, 'content.md');
 
-    const uploadUrl = `http://39.107.59.41:18080/upload/${hashedUserIdHex}`;
-    console.log('📤 开始上传内容:', uploadUrl);
+    const uploadUrl = `${API_BASE_URL}/upload/${hashedUserIdHex}`;
+    apiDebug('upload:start', {
+      requestId,
+      url: uploadUrl,
+      contentLength: markdownContent.length,
+    });
 
     const response = await fetchWithTimeout(uploadUrl, {
       method: 'POST',
       body: formData,
-      headers: { 
+      headers: withRequestIdHeaders(requestId, {
         'Accept': 'application/json'
-      },
+      }),
       credentials: 'include'
+    });
+
+    apiDebug('upload:response', {
+      requestId,
+      status: response.status,
+      ok: response.ok,
     });
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => '无法获取错误详情');
-      console.error('❌ 上传失败:', response.status, errorText);
-      return { questions: [], content_id: '' };
+      apiDebugError('upload:error', new Error(errorText), {
+        requestId,
+        status: response.status,
+      });
+      throw new Error(`上传失败: ${response.status} ${errorText}`);
     }
 
     const result: UploadResult = await response.json();
-    console.log('✅ 上传成功:', result);
+    apiDebug('upload:file-id', {
+      requestId,
+      fileId: result.file_id,
+      hasFileId: Boolean(result.file_id),
+    });
 
-    return await processAfterUpload(result, hashedUserIdHex, onPollIntervalCreated);
+    return await processAfterUpload(result, hashedUserIdHex, onPollIntervalCreated, requestId);
     
   } catch (error) {
-    console.error('💥 上传过程错误:', error);
-    return { questions: [], content_id: '' };
+    apiDebugError('upload:error', error, { requestId });
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -491,60 +641,115 @@ export async function uploadMarkdownContent(
 async function processAfterUpload(
   result: UploadResult,
   hashedUserIdHex: string,
-  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void
+  onPollIntervalCreated?: (pollIntervalId: ReturnType<typeof setInterval>) => void,
+  requestId?: string
 ): Promise<QuestionResponse> {
+  const traceRequestId = normalizeRequestId(requestId);
   try {
-    const generateUrl = `http://39.107.59.41:18080/questions/generate/${hashedUserIdHex}/${result.content_id}`;
-    console.log('🔄 生成问题:', generateUrl);
+    const fileId = result.file_id;
+    if (!fileId) {
+      apiDebugError('upload:file-id', new Error('Upload response missing file_id'), { requestId: traceRequestId });
+      throw new Error('上传响应缺少 file_id，无法生成问题');
+    }
+
+    const generateUrl = `${API_BASE_URL}/questions/generate/${hashedUserIdHex}/${fileId}`;
+    apiDebug('questions-generate:start', {
+      requestId: traceRequestId,
+      fileId,
+      url: generateUrl,
+    });
 
     const generateResponse = await fetchWithTimeout(generateUrl, {
       method: 'POST',
-      headers: { 'Accept': 'application/json' },
+      headers: withRequestIdHeaders(traceRequestId, { 'Accept': 'application/json' }),
       credentials: 'include'
     });
 
+    apiDebug('questions-generate:response', {
+      requestId: traceRequestId,
+      fileId,
+      status: generateResponse.status,
+      ok: generateResponse.ok,
+    });
+
     if (!generateResponse.ok) {
-      console.error('❌ 生成问题失败:', generateResponse.status);
-      return { questions: [], content_id: result.content_id };
+      const errorText = await generateResponse.text().catch(() => '无法获取错误详情');
+      apiDebugError('questions-generate:error', new Error(errorText), {
+        requestId: traceRequestId,
+        fileId,
+        status: generateResponse.status,
+      });
+      throw new Error(`生成问题失败: ${generateResponse.status} ${errorText}`);
     }
 
     // 轮询获取结果
-    return new Promise<QuestionResponse>((resolve) => {
-      pollContentStatus(
-        result.content_id,
-        async (contentId) => {
+    return new Promise<QuestionResponse>((resolve, reject) => {
+      pollFileStatus(
+        fileId,
+        async (completedFileId) => {
           try {
-            const questionsUrl = `http://39.107.59.41:18080/questions/${contentId}`;
+            const questionsUrl = `${API_BASE_URL}/questions/${completedFileId}`;
+            apiDebug('questions:fetch', {
+              requestId: traceRequestId,
+              fileId: completedFileId,
+              url: questionsUrl,
+            });
             const questionsResponse = await fetchWithTimeout(questionsUrl, {
               method: 'GET',
-              headers: { 'Accept': 'application/json' }
+              headers: withRequestIdHeaders(traceRequestId, { 'Accept': 'application/json' })
+            });
+
+            apiDebug('questions:response', {
+              requestId: traceRequestId,
+              fileId: completedFileId,
+              status: questionsResponse.status,
+              ok: questionsResponse.ok,
             });
 
             if (!questionsResponse.ok) {
-              console.error('❌ 获取问题列表失败:', questionsResponse.status);
-              resolve({ questions: [], content_id: contentId });
+              const errorText = await questionsResponse.text().catch(() => '无法获取错误详情');
+              apiDebugError('questions:response', new Error(errorText), {
+                requestId: traceRequestId,
+                fileId: completedFileId,
+                status: questionsResponse.status,
+              });
+              reject(new Error(`获取问题列表失败: ${questionsResponse.status} ${errorText}`));
               return;
             }
 
-            const questionsResult = await questionsResponse.json() as QuestionResponse;
-            console.log('✅ 获取问题列表成功:', questionsResult);
-            resolve(questionsResult);
+            const questionsResult = await questionsResponse.json() as Partial<QuestionResponse>;
+            apiDebug('questions:response', {
+              requestId: traceRequestId,
+              fileId: questionsResult.file_id || completedFileId,
+              questionsCount: questionsResult.questions?.length || 0,
+            });
+            resolve({
+              file_id: questionsResult.file_id || completedFileId,
+              questions: questionsResult.questions || [],
+            });
           } catch (error) {
-            console.error('💥 获取问题列表错误:', error);
-            resolve({ questions: [], content_id: contentId });
+            apiDebugError('questions:response', error, {
+              requestId: traceRequestId,
+              fileId: completedFileId,
+            });
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
         },
-        () => {
-          console.error('⏰ 内容处理超时');
-          resolve({ questions: [], content_id: result.content_id });
+        (error) => {
+          apiDebugError('file-status:error', error, {
+            requestId: traceRequestId,
+            fileId,
+          });
+          reject(error);
         },
         3000,
-        onPollIntervalCreated
-      );
+        onPollIntervalCreated,
+        traceRequestId
+      ).catch(reject);
     });
   } catch (error) {
-    console.error('💥 后续处理错误:', error);
-    return { questions: [], content_id: result.content_id };
+    apiDebugError('questions-generate:error', error, { requestId: traceRequestId });
+    throw error instanceof Error ? error : new Error(String(error));
   }
 }
 
@@ -565,15 +770,16 @@ const fetchWithTimeout = (url: string, options: RequestInit, timeout = 30000) =>
  * @returns 内容列表
  */
 async function getUserContents(userIdHash: string): Promise<ContentHistoryItem[]> {
-  const url = `http://39.107.59.41:18080/files/${userIdHash}`;
+  const url = `${API_BASE_URL}/files/${userIdHash}`;
+  const requestId = normalizeRequestId();
   
   try {
     const response = await fetchWithTimeout(url, {
       method: 'GET',
-      headers: { 
+      headers: withRequestIdHeaders(requestId, {
         'Accept': 'application/json',
         'Cache-Control': 'no-cache'
-      },
+      }),
       credentials: 'include'
     });
 
@@ -607,17 +813,18 @@ export interface StreamResponseHandler {
 export async function llmQueryStreamWithProgress(
   question_id: number,
   chunk_id: number,
-  handler: StreamResponseHandler
+  handler: StreamResponseHandler,
+  requestId: string = normalizeRequestId()
 ): Promise<void> {
   try {
-    const answerUrl = `http://39.107.59.41:18080/llm/query/stream`;
+    const answerUrl = `${API_BASE_URL}/llm/query/stream`;
     
     const response = await fetchWithTimeout(answerUrl, {
       method: 'POST',
-      headers: {
+      headers: withRequestIdHeaders(requestId, {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-      },
+      }),
       body: JSON.stringify({
         question_id,
         chunk_id

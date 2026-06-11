@@ -5,7 +5,7 @@ This module provides the main FastAPI application setup and configuration
 for the file management
 microservice. It includes:
 - CORS middleware configuration
-- Database, Redis and Storage manager initialization 
+- Database, local status store and Storage manager initialization
 - Logging setup
 - Router registration
 - Shutdown event handlers
@@ -13,6 +13,14 @@ microservice. It includes:
 The service exposes REST endpoints for file management operations 
 through the file_management_router.
 """
+import os
+from pathlib import Path
+
+# 加载 src/.env 到系统环境变量（必须在其他导入之前执行）
+from dotenv import load_dotenv
+_env_path = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=_env_path)
+
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -35,4 +43,6 @@ app.include_router(question_router)
 app.include_router(llm_router)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("SERVER_HOST", "0.0.0.0")
+    port = int(os.getenv("SERVER_PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)

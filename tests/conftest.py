@@ -2,11 +2,10 @@
 Shared pytest fixtures for InsightFlow API tests.
 
 Provides mock dependencies so tests never touch real services
-(MySQL, Redis, OSS, external LLM APIs).
+(SQLite files, local status files, OSS, external LLM APIs).
 
-IMPORTANT: This module avoids importing shared_resources because
-that triggers a chain of imports (RedisManager → aioredis) which
-pulls in real infrastructure dependencies.
+IMPORTANT: This module avoids importing shared_resources so tests do not run
+application startup side effects.
 """
 import io
 import os
@@ -43,19 +42,22 @@ def mock_llm_gateway():
 
 
 @pytest.fixture
-def mock_redis():
-    """Redis manager mock — no real Redis connection."""
-    r = MagicMock()
-    r.initialize = MagicMock()
-    r.close_redis = MagicMock()
+def mock_status_store():
+    """File status store mock with no local file I/O."""
+    store = MagicMock()
+    store.initialize = MagicMock()
+    store.close = MagicMock()
     # Make async methods return awaitables
     async def _get_status(fid):
         return "Completed"
     async def _set_status(fid, status, ttl=None):
         return True
-    r.get_file_status = _get_status
-    r.set_file_status = _set_status
-    return r
+    async def _delete_status(fid):
+        return True
+    store.get_file_status = _get_status
+    store.set_file_status = _set_status
+    store.delete_file_status = _delete_status
+    return store
 
 
 @pytest.fixture
@@ -74,26 +76,26 @@ def mock_storage():
     return s
 
 
-def _install_overrides(app, memory_repo, mock_llm, mock_redis, mock_storage):
+def _install_overrides(app, memory_repo, mock_llm, mock_status_store, mock_storage):
     """Install dependency overrides for all three route modules."""
-    # Lazy import to avoid triggering RedisManager → aioredis import chain
+    # Lazy import to avoid triggering app startup side effects.
     from server.api_services.file_routes import (
         get_database_manager as file_get_db_mgr,
         get_db as file_get_db,
-        get_redis_manager as file_get_redis,
+        get_status_store as file_get_status_store,
         get_storage_manager as file_get_storage,
     )
     from server.api_services.question_routes import (
         get_database_manager as q_get_db_mgr,
         get_db as q_get_db,
-        get_redis_manager as q_get_redis,
+        get_status_store as q_get_status_store,
         get_storage_manager as q_get_storage,
         get_llm_gateway as q_get_llm,
     )
     from server.api_services.llm_routes import (
         get_database_manager as llm_get_db_mgr,
         get_db as llm_get_db,
-        get_redis_manager as llm_get_redis,
+        get_status_store as llm_get_status_store,
         get_storage_manager as llm_get_storage,
         get_llm_gateway as llm_get_llm,
     )
@@ -101,16 +103,16 @@ def _install_overrides(app, memory_repo, mock_llm, mock_redis, mock_storage):
     overrides = {
         file_get_db_mgr: lambda: memory_repo,
         file_get_db: lambda: memory_repo,
-        file_get_redis: lambda: mock_redis,
+        file_get_status_store: lambda: mock_status_store,
         file_get_storage: lambda: mock_storage,
         q_get_db_mgr: lambda: memory_repo,
         q_get_db: lambda: memory_repo,
-        q_get_redis: lambda: mock_redis,
+        q_get_status_store: lambda: mock_status_store,
         q_get_storage: lambda: mock_storage,
         q_get_llm: lambda: mock_llm,
         llm_get_db_mgr: lambda: memory_repo,
         llm_get_db: lambda: memory_repo,
-        llm_get_redis: lambda: mock_redis,
+        llm_get_status_store: lambda: mock_status_store,
         llm_get_storage: lambda: mock_storage,
         llm_get_llm: lambda: mock_llm,
     }
@@ -118,10 +120,10 @@ def _install_overrides(app, memory_repo, mock_llm, mock_redis, mock_storage):
 
 
 @pytest.fixture
-def test_app(memory_repo, mock_llm_gateway, mock_redis, mock_storage):
+def test_app(memory_repo, mock_llm_gateway, mock_status_store, mock_storage):
     """FastAPI app with all dependencies overridden to mocks.
 
-    Uses a lifespan-free FastAPI instance so no real DB/Redis/Storage
+    Uses a lifespan-free FastAPI instance so no real DB/Storage/status file
     connections are attempted. Routers are registered and dependency
     overrides inject mock objects.
     """
@@ -141,7 +143,7 @@ def test_app(memory_repo, mock_llm_gateway, mock_redis, mock_storage):
     app.include_router(question_router)
     app.include_router(llm_router)
 
-    _install_overrides(app, memory_repo, mock_llm_gateway, mock_redis, mock_storage)
+    _install_overrides(app, memory_repo, mock_llm_gateway, mock_status_store, mock_storage)
     return app
 
 

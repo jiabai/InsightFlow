@@ -1,6 +1,13 @@
+# 环境变量（不要提交敏感配置）
+.env
+.env.local
+.env.*.local
+
 node_modules/
 upload_file/
 completed/
+status_store/
+data/
 Clearly-Reader/
 src/server/llm_knowledge_processing/__pycache__/
 src/server/common/__pycache__/

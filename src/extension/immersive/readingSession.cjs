@@ -1,5 +1,10 @@
 function startReadingSession(siteRules = null) {
   const MIN_CONTENT_LENGTH = 500;
+  const GENERATE_PORT_NAME = 'insightflow-generate-questions';
+  const LEGACY_GENERATE_TYPE = 'INSIGHTFLOW_GENERATE_QUESTIONS';
+  const PORT_GENERATE_START_TYPE = 'INSIGHTFLOW_GENERATE_QUESTIONS_START';
+  const GENERATE_TIMEOUT_MS = 240000;
+  const DEBUG_PREFIX = '[InsightFlow:reader]';
   const readingWindow = window;
   const messages = createMessages();
   const activeSiteRules = normalizeSiteRules(siteRules);
@@ -875,7 +880,12 @@ function startReadingSession(siteRules = null) {
 
     closeButton.addEventListener('click', cleanup);
     generateButton.addEventListener('click', () => {
-      generateQuestions(extracted.text, sidebar, generateButton);
+      const requestId = createRequestId();
+      debugLog('generate:click', {
+        requestId,
+        contentLength: extracted.text.length,
+      });
+      generateQuestions(extracted.text, sidebar, generateButton, requestId);
     });
     window.addEventListener('keydown', onKeyDown, true);
     readingWindow.__insightFlowReadingSessionCleanup = cleanup;
@@ -886,18 +896,27 @@ function startReadingSession(siteRules = null) {
     document.body.style.overflow = 'hidden';
   }
 
-  function generateQuestions(content, sidebar, button) {
+  function generateQuestions(content, sidebar, button, requestId) {
     button.disabled = true;
-    renderSidebarStatus(sidebar, messages.generatingQuestions);
+    renderSidebarStatus(sidebar, `${messages.generatingQuestions} (${shortRequestId(requestId)})`);
+    debugLog('generate:content-ready', {
+      requestId,
+      contentLength: content.length,
+    });
 
-    requestQuestionGeneration(content)
+    requestQuestionGeneration(content, requestId)
       .then((response) => {
         if (!response || response.ok === false) {
           throw new Error(response?.error || messages.failedToGenerateQuestions);
         }
+        debugLog('generate:success', {
+          requestId: response.requestId || requestId,
+          questionsCount: Array.isArray(response.questions) ? response.questions.length : 0,
+        });
         renderQuestions(sidebar, response.questions || []);
       })
       .catch((error) => {
+        debugError('generate:error', error, { requestId });
         renderSidebarStatus(sidebar, error instanceof Error ? error.message : String(error));
       })
       .finally(() => {
@@ -905,15 +924,94 @@ function startReadingSession(siteRules = null) {
       });
   }
 
-  function requestQuestionGeneration(content) {
+  function requestQuestionGeneration(content, requestId) {
     const runtime =
       (window.chrome && window.chrome.runtime) ||
       (globalThis.chrome && globalThis.chrome.runtime);
 
-    if (!runtime || typeof runtime.sendMessage !== 'function') {
+    if (!runtime || (typeof runtime.connect !== 'function' && typeof runtime.sendMessage !== 'function')) {
       return Promise.reject(new Error(messages.extensionMessagingUnavailable));
     }
 
+    if (typeof runtime.connect === 'function') {
+      return requestQuestionGenerationViaPort(runtime, content, requestId);
+    }
+
+    return requestQuestionGenerationViaLegacyMessage(runtime, content, requestId);
+  }
+
+  function requestQuestionGenerationViaPort(runtime, content, requestId) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let port;
+      let timeoutId;
+
+      const settle = (callback) => {
+        if (settled) return;
+        settled = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        try {
+          port?.disconnect();
+        } catch {
+          // The port may already be closed by the service worker.
+        }
+        callback();
+      };
+
+      const finish = (response) => {
+        settle(() => resolve(response));
+      };
+
+      try {
+        debugLog('port:connect', { requestId, portName: GENERATE_PORT_NAME });
+        port = runtime.connect({ name: GENERATE_PORT_NAME });
+
+        port.onMessage.addListener((response) => {
+          debugLog('port:message', {
+            requestId: response?.requestId || requestId,
+            ok: response?.ok,
+            questionsCount: Array.isArray(response?.questions) ? response.questions.length : undefined,
+            error: response?.error,
+          });
+          finish(response);
+        });
+
+        port.onDisconnect.addListener(() => {
+          const lastError = runtime.lastError;
+          debugLog('port:disconnect', {
+            requestId,
+            error: lastError?.message,
+          });
+          if (!settled) {
+            settle(() => reject(new Error(lastError?.message || messages.failedToGenerateQuestions)));
+          }
+        });
+
+        timeoutId = setTimeout(() => {
+          debugLog('generate:timeout', {
+            requestId,
+            timeoutMs: GENERATE_TIMEOUT_MS,
+          });
+          settle(() => reject(new Error(`${messages.failedToGenerateQuestions} (${shortRequestId(requestId)} timeout)`)));
+        }, GENERATE_TIMEOUT_MS);
+
+        debugLog('port:post-start', {
+          requestId,
+          contentLength: content.length,
+        });
+        port.postMessage({
+          type: PORT_GENERATE_START_TYPE,
+          requestId,
+          contentLength: content.length,
+          content,
+        });
+      } catch (error) {
+        settle(() => reject(error));
+      }
+    });
+  }
+
+  function requestQuestionGenerationViaLegacyMessage(runtime, content, requestId) {
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (response) => {
@@ -928,8 +1026,17 @@ function startReadingSession(siteRules = null) {
       };
 
       try {
+        debugLog('legacy-message:post-start', {
+          requestId,
+          contentLength: content.length,
+        });
         const maybePromise = runtime.sendMessage(
-          { type: 'INSIGHTFLOW_GENERATE_QUESTIONS', content },
+          {
+            type: LEGACY_GENERATE_TYPE,
+            requestId,
+            contentLength: content.length,
+            content,
+          },
           finish,
         );
         if (maybePromise && typeof maybePromise.then === 'function') {
@@ -939,6 +1046,55 @@ function startReadingSession(siteRules = null) {
         reject(error);
       }
     });
+  }
+
+  function createRequestId() {
+    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  function shortRequestId(requestId) {
+    return String(requestId || '').slice(-6) || 'unknown';
+  }
+
+  function serializeError(error) {
+    if (error instanceof Error) {
+      return {
+        message: error.message,
+        stack: error.stack,
+      };
+    }
+    return { message: String(error) };
+  }
+
+  function sanitizeDebugDetails(details) {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(details || {})) {
+      if (key === 'content' && typeof value === 'string') {
+        sanitized.contentLength = value.length;
+        continue;
+      }
+      sanitized[key] = value;
+    }
+    return sanitized;
+  }
+
+  function debugLog(event, details = {}) {
+    try {
+      console.info(DEBUG_PREFIX, event, sanitizeDebugDetails(details));
+    } catch {
+      // Debug logging must never affect the reading session.
+    }
+  }
+
+  function debugError(event, error, details = {}) {
+    try {
+      console.error(DEBUG_PREFIX, event, {
+        ...sanitizeDebugDetails(details),
+        error: serializeError(error),
+      });
+    } catch {
+      // Debug logging must never affect the reading session.
+    }
   }
 
   function renderSidebarStatus(sidebar, message) {

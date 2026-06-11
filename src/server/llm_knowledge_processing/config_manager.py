@@ -20,8 +20,14 @@ class ConfigManager:
                 )
             )
         )
-        self.upload_dir = os.path.join(self.base_dir, 'upload_file')
-        self.completed_dir = os.path.join(self.base_dir, 'completed')
+        self.upload_dir = os.getenv(
+            'LOCAL_STORAGE_BASE_DIR',
+            os.path.join('.', 'upload_file')
+        )
+        self.completed_dir = os.getenv(
+            'LOCAL_COMPLETED_DIR',
+            os.path.join('.', 'completed')
+        )
 
         # 确保目录存在
         os.makedirs(self.upload_dir, exist_ok=True)

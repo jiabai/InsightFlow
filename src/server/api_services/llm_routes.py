@@ -20,9 +20,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from server.common.models import FileMetadata, Chunk
 from server.common.repository import InsightRepository
 from server.common.file_metadata_response import FileMetadataResponse
-from server.common.redis_manager import RedisManager
+from server.common.file_status_store import FileStatusStore
 from server.common.storage_interface import StorageInterface
-from server.common.exceptions import StorageError, DatabaseError, RedisError
+from server.common.exceptions import StorageError, DatabaseError, StatusStoreError
 from server.api_services.shared_resources import get_logger
 
 from server.llm_knowledge_processing.llm_gateway import LLMGateway
@@ -40,9 +40,12 @@ async def get_db(request: Request):
     async with db_mgr.get_db() as db:
         yield db
 
-async def get_redis_manager(request: Request) -> RedisManager:
-    """Dependency that returns the shared RedisManager instance."""
-    return request.app.state.redis_manager
+async def get_status_store(request: Request) -> FileStatusStore:
+    """Dependency that returns the shared file status store instance."""
+    return request.app.state.status_store
+
+
+get_redis_manager = get_status_store
 
 async def get_storage_manager(request: Request) -> StorageInterface:
     """Dependency that returns the shared StorageInterface instance."""
@@ -102,19 +105,32 @@ async def llm_query(
             - 502 if upstream LLM API call fails
     """
     logger = get_logger()
+    logger.debug(
+        "llm query request question_id=%s chunk_id=%s",
+        payload.question_id,
+        payload.chunk_id,
+    )
 
-    # Fetch chunk content
-    chunk = await db_mgr.get_chunk_by_id(db_mgr, payload.chunk_id)
-    if not chunk:
-        logger.error("Chunk not found: %s", payload.chunk_id)
-        raise HTTPException(status_code=404, detail=f"Chunk not found: {payload.chunk_id}")
+    async with db_mgr.get_db() as db:
+        # Fetch chunk content
+        chunk = await db_mgr.get_chunk_by_id(db, payload.chunk_id)
+        if not chunk:
+            logger.error("Chunk not found: %s", payload.chunk_id)
+            raise HTTPException(status_code=404, detail=f"Chunk not found: {payload.chunk_id}")
 
-    # Fetch question under this chunk
-    questions = await db_mgr.get_questions_by_chunk_id(db_mgr, payload.chunk_id)
-    target_q = next((q for q in questions if q.id == payload.question_id), None)
+        # Fetch question under this chunk
+        questions = await db_mgr.get_questions_by_chunk_id(db, payload.chunk_id)
+        target_q = next((q for q in questions if q.id == payload.question_id), None)
     if not target_q:
         logger.error("Question %s not found under chunk %s", payload.question_id, payload.chunk_id)
         raise HTTPException(status_code=404, detail=f"Question not found: {payload.question_id}")
+    logger.debug(
+        "llm query context ready question_id=%s chunk_id=%s context_length=%d question_length=%d",
+        payload.question_id,
+        payload.chunk_id,
+        len(chunk.content or ""),
+        len(target_q.question or ""),
+    )
 
     # Construct prompt
     system_prompt = (
@@ -127,13 +143,29 @@ async def llm_query(
     )
 
     try:
+        logger.debug(
+            "llm query start question_id=%s chunk_id=%s",
+            payload.question_id,
+            payload.chunk_id,
+        )
         result = await llm_gateway.query_async(
             system_prompt=system_prompt,
             user_content=user_content,
         )
+        logger.debug(
+            "llm query success question_id=%s chunk_id=%s",
+            payload.question_id,
+            payload.chunk_id,
+        )
         return result
     except Exception as e:
-        logger.error("LLM query failed: %s", str(e), exc_info=True)
+        logger.error(
+            "llm query error question_id=%s chunk_id=%s error=%s",
+            payload.question_id,
+            payload.chunk_id,
+            str(e),
+            exc_info=True,
+        )
         raise HTTPException(status_code=502, detail="LLM query failed") from e
 
 @router.post("/llm/query/stream")
@@ -168,23 +200,36 @@ async def llm_query_stream(
             - 500 for other processing errors
     """
     logger = get_logger()
+    logger.debug(
+        "llm stream request question_id=%s chunk_id=%s",
+        payload.question_id,
+        payload.chunk_id,
+    )
 
-    # Fetch chunk
-    chunk = await db_mgr.get_chunk_by_id(db_mgr, payload.chunk_id)
-    if not chunk:
-        logger.error("Chunk not found: %s", payload.chunk_id)
-        raise HTTPException(status_code=404, detail=f"Chunk not found: {payload.chunk_id}")
+    async with db_mgr.get_db() as db:
+        # Fetch chunk
+        chunk = await db_mgr.get_chunk_by_id(db, payload.chunk_id)
+        if not chunk:
+            logger.error("Chunk not found: %s", payload.chunk_id)
+            raise HTTPException(status_code=404, detail=f"Chunk not found: {payload.chunk_id}")
 
-    # Find target question
-    questions = await db_mgr.get_questions_by_chunk_id(db_mgr, payload.chunk_id)
-    target_q = None
-    for q in questions:
-        if getattr(q, "id", None) == payload.question_id:
-            target_q = q
-            break
+        # Find target question
+        questions = await db_mgr.get_questions_by_chunk_id(db, payload.chunk_id)
+        target_q = None
+        for q in questions:
+            if getattr(q, "id", None) == payload.question_id:
+                target_q = q
+                break
     if not target_q:
         logger.error("Question %s not found under chunk %s", payload.question_id, payload.chunk_id)
         raise HTTPException(status_code=404, detail=f"Question not found: {payload.question_id}")
+    logger.debug(
+        "llm stream context ready question_id=%s chunk_id=%s context_length=%d question_length=%d",
+        payload.question_id,
+        payload.chunk_id,
+        len(chunk.content or ""),
+        len(target_q.question or ""),
+    )
 
     # Try research augmentation (graceful degradation)
     enriched = ""
@@ -210,11 +255,32 @@ async def llm_query_stream(
         f"{enriched}"
     )
 
-    return StreamingResponse(
-        llm_gateway.query_stream(
-            system_prompt=system_prompt,
-            user_content=user_content,
-        ),
-        media_type="text/event-stream",
-    )
+    async def logged_stream():
+        logger.debug(
+            "llm stream start question_id=%s chunk_id=%s",
+            payload.question_id,
+            payload.chunk_id,
+        )
+        try:
+            async for chunk_data in llm_gateway.query_stream(
+                system_prompt=system_prompt,
+                user_content=user_content,
+            ):
+                yield chunk_data
+            logger.debug(
+                "llm stream end question_id=%s chunk_id=%s",
+                payload.question_id,
+                payload.chunk_id,
+            )
+        except Exception as e:
+            logger.error(
+                "llm stream error question_id=%s chunk_id=%s error=%s",
+                payload.question_id,
+                payload.chunk_id,
+                str(e),
+                exc_info=True,
+            )
+            raise
+
+    return StreamingResponse(logged_stream(), media_type="text/event-stream")
 

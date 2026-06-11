@@ -7,7 +7,7 @@ import type { QuestionItem } from './questionTypes';
 
 /** 上传响应 */
 export interface UploadResponse {
-  content_id: string;
+  file_id: string;
   filename: string;
   size: number;
   type: string;
@@ -16,26 +16,26 @@ export interface UploadResponse {
   status: string;
 }
 
-/** 内容状态查询响应 */
-export interface ContentStatusResponse {
-  content_id: string;
+/** 文件状态查询响应 */
+export interface FileStatusResponse {
+  file_id: string;
   status: 'Pending' | 'Processing' | 'Completed' | 'Failed';
 }
 
 /** 问题生成请求响应 */
 export interface GenerateQuestionsResponse {
-  content_id: string;
+  file_id: string;
   questions: QuestionItem[];
 }
 
 /** 用户历史内容列表项 */
 export interface ContentHistoryItem {
   id: number;
-  content_id: string;
+  file_id: string;
   user_id: string;
   filename: string;
-  content_size: number;
-  content_type: string;
+  file_size: number;
+  file_type: string;
   upload_time: string;
   stored_filename: string;
 }

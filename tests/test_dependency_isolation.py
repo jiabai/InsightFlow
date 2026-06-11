@@ -1,6 +1,6 @@
 """
 Test 4: Dependency isolation — verifies that tests use mock dependencies
-and never touch real MySQL, Redis, or external LLM APIs.
+and never touch real SQLite files, local status files, or external LLM APIs.
 """
 import pytest
 

@@ -1,5 +1,12 @@
 # InsightFlow
 
+## Runtime Persistence
+
+- Content metadata, chunks, and generated questions use SQLite via `InsightSQLiteRepository`.
+- Default SQLite path: `./data/insight_flow.sqlite3`; override with `SQLITE_DB_PATH`.
+- Content processing status uses the local file status store under `./status_store` by default; override with `LOCAL_STATUS_STORE_DIR`.
+- No automatic MySQL-to-SQLite migration is provided.
+
 一个阅读辅助 + 自主研究的整合工具，帮助用户将内容转化为结构化问答以深化理解。
 
 ## Language
@@ -56,4 +63,4 @@ Content 在管线中的两层状态机：
 | **uploading** | 上传 Content 到服务端 |
 | **generating** | LLM 生成问题 |
 
-状态转换方向：Pending → Processing（进入流水线子状态：idle → extracting → uploading → generating）→ Completed（成功）或 Failed（失败）。运维上通过 Redis 追踪（TTL 7 天）。对应代码中 `statusTracker.cjs` 管理流水线状态。
+状态转换方向：Pending → Processing（进入流水线子状态：idle → extracting → uploading → generating）→ Completed（成功）或 Failed（失败）。运维上通过本地状态文件追踪（TTL 7 天）。对应代码中 `statusTracker.cjs` 管理流水线状态。

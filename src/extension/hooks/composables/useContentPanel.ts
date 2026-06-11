@@ -23,9 +23,23 @@ export function useContentPanel() {
   let progressInterval: ReturnType<typeof setInterval> | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
+  function clearProgressInterval() {
+    if (progressInterval) {
+      clearInterval(progressInterval);
+      progressInterval = null;
+    }
+  }
+
+  function clearPollInterval() {
+    if (pollIntervalId) {
+      clearInterval(pollIntervalId);
+      pollIntervalId = null;
+    }
+  }
+
   /** Start progress bar animation (0 → 90%). */
   function startProgressAnimation() {
-    if (progressInterval) clearInterval(progressInterval);
+    clearProgressInterval();
     progress.value = 0;
 
     progressInterval = setInterval(() => {
@@ -40,10 +54,7 @@ export function useContentPanel() {
 
   /** Smoothly complete the progress bar to 100% and hide. */
   function completeProgressAnimation() {
-    if (progressInterval) {
-      clearInterval(progressInterval);
-      progressInterval = null;
-    }
+    clearProgressInterval();
 
     const duration = 1000;
     const start = progress.value;
@@ -69,10 +80,7 @@ export function useContentPanel() {
 
   /** Stop progress animation and show error state briefly. */
   function stopProgressAnimation() {
-    if (progressInterval) {
-      clearInterval(progressInterval);
-      progressInterval = null;
-    }
+    clearProgressInterval();
     setTimeout(() => {
       showProgress.value = false;
       showSkeleton.value = false;
@@ -81,6 +89,8 @@ export function useContentPanel() {
 
   /** Generate questions from extracted content. */
   async function handleGenerate() {
+    clearProgressInterval();
+    clearPollInterval();
     showSkeleton.value = true;
     showProgress.value = true;
     progress.value = 0;
@@ -89,7 +99,7 @@ export function useContentPanel() {
     startProgressAnimation();
 
     try {
-      if (content.value) {
+      if (content.value.trim()) {
         const response: QuestionResponse = await generateQuestion(
           content.value,
           (id) => { pollIntervalId = id; }
@@ -103,6 +113,7 @@ export function useContentPanel() {
       error.value = err instanceof Error ? err : new Error('未知错误');
       stopProgressAnimation();
     } finally {
+      clearPollInterval();
       if (showProgress.value) {
         setTimeout(() => {
           if (progress.value < 100) stopProgressAnimation();
@@ -114,14 +125,8 @@ export function useContentPanel() {
   /** Reset UI state (preserve answers cache). */
   function resetState() {
     questions.value = [];
-    if (progressInterval) {
-      clearInterval(progressInterval);
-      progressInterval = null;
-    }
-    if (pollIntervalId) {
-      clearInterval(pollIntervalId);
-      pollIntervalId = null;
-    }
+    clearProgressInterval();
+    clearPollInterval();
     showSkeleton.value = false;
     showProgress.value = false;
     progress.value = 0;

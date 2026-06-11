@@ -1,8 +1,8 @@
 """
 InsightRepository — abstract repository interface.
 
-Defines the single seam through which all data access flows.
-Two adapters: InsightMySQLRepository (production) and InsightMemoryRepository (tests).
+Defines the single interface through which all data access flows.
+Adapters include InsightSQLiteRepository (production) and InsightMemoryRepository (tests).
 """
 
 from abc import ABC, abstractmethod

@@ -5,6 +5,9 @@ import path from 'path'
 export default defineConfig({
 	modules: ['@wxt-dev/module-vue'],
   publicDir: 'public',
+  vite: () => ({
+    envDir: path.resolve(__dirname, '..'),
+  }),
   dev: {
     server: {
       port: 5174,

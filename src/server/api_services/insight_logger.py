@@ -13,6 +13,7 @@ Usage:
 import logging
 import uuid
 import os
+import time
 from logging.handlers import RotatingFileHandler, TimedRotatingFileHandler
 import contextvars
 import functools
@@ -31,6 +32,8 @@ request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 task_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     "task_id", default="No_Task"
 )
+
+REQUEST_ID_HEADER = "X-InsightFlow-Request-Id"
 
 
 def set_task_id(task_id: str) -> contextvars.Token:
@@ -143,12 +146,42 @@ def setup_logging(
     # FastAPI request-context middleware
     @app.middleware("http")
     async def _insightflow_context_middleware(request: Request, call_next):
-        request_id = uuid.uuid4().hex
+        incoming_request_id = request.headers.get(REQUEST_ID_HEADER)
+        request_id = (
+            incoming_request_id.strip()
+            if incoming_request_id and incoming_request_id.strip()
+            else uuid.uuid4().hex
+        )
         url = str(request.url)
         token_url = url_var.set(url)
         token_req = request_id_var.set(request_id)
+        start_time = time.perf_counter()
         try:
-            return await call_next(request)
+            logger.debug(
+                "request start method=%s path=%s",
+                request.method,
+                request.url.path,
+            )
+            response = await call_next(request)
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            response.headers[REQUEST_ID_HEADER] = request_id
+            logger.debug(
+                "request end method=%s path=%s status=%s duration_ms=%.2f",
+                request.method,
+                request.url.path,
+                response.status_code,
+                duration_ms,
+            )
+            return response
+        except Exception:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.exception(
+                "request error method=%s path=%s duration_ms=%.2f",
+                request.method,
+                request.url.path,
+                duration_ms,
+            )
+            raise
         finally:
             url_var.reset(token_url)
             request_id_var.reset(token_req)

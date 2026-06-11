@@ -3,8 +3,8 @@
  * 表示内容上传到服务器后的响应数据结构
  */
 export interface UploadResult {
-  /** 内容唯一标识符 */
-  content_id: string;
+  /** 文件唯一标识符 */
+  file_id: string;
   /** 原始文件名 */
   filename: string;
   /** 内容大小(字节) */
