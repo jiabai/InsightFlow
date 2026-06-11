@@ -1,10 +1,49 @@
 {
   "extName": {
-    "message": "AI思考助手",
-    "description": "生成启发式问题和深度回答，帮助深入理解内容"
+    "message": "AI 思考助手",
+    "description": "扩展名称"
   },
   "extDescription": {
-    "message": "AI思考助手",
-    "description": "生成启发式问题和深度回答，帮助深入理解内容"
+    "message": "生成启发式问题和深度回答，帮助深入理解内容。",
+    "description": "扩展描述"
+  },
+  "unsupportedPage": {
+    "message": "当前页面不支持进入阅读会话"
+  },
+  "unreadableSite": {
+    "message": "当前站点不支持阅读会话"
+  },
+  "extractContentFailed": {
+    "message": "未能提取到可阅读内容"
+  },
+  "enterReadingSessionFailed": {
+    "message": "无法进入阅读会话"
+  },
+  "immersiveReadingLabel": {
+    "message": "沉浸式阅读"
+  },
+  "generateQuestionsTooltip": {
+    "message": "生成问题"
+  },
+  "exitReadingModeTooltip": {
+    "message": "退出阅读模式"
+  },
+  "questionsLabel": {
+    "message": "问题"
+  },
+  "noQuestionsGenerated": {
+    "message": "未生成问题"
+  },
+  "generatingQuestions": {
+    "message": "正在生成问题..."
+  },
+  "failedToGenerateQuestions": {
+    "message": "生成问题失败"
+  },
+  "extensionMessagingUnavailable": {
+    "message": "扩展消息通道不可用"
+  },
+  "pageContentTooShort": {
+    "message": "页面内容少于 $1 个字符"
   }
 }

@@ -11,7 +11,7 @@
 _Avoid_: 账户（Account）、账号、客户端（Client）
 
 **Session**（会话）：
-一次完整的交互过程，涵盖内容获取 → 切片 → 问题生成 → 问答的完整管线。分为阅读会话（Reading Session）和研究会话（Research Session）两种类型。
+一次完整的交互过程，涵盖内容获取 → 问题生成 → 问答的完整管线。分为阅读会话（Reading Session）和研究会话（Research Session）两种类型。
 _Avoid_: 任务（Task）、项目（Project）
 
 **Reading Session**（阅读会话）：
@@ -23,31 +23,37 @@ _Avoid_: 阅读模式、浏览会话
 _Avoid_: 深度研究、调研任务
 
 **Content**（内容）：
-进入处理管线的原材料，一份完整的 Markdown 文档。一个 Session 对应一份 Content。阅读会话的 Content 来自网页提取；研究会话的 Content 来自搜索聚合后生成的综合报告。对应代码中的 File 实体。
-_Avoid_: File（文件）、Document（文档）
+进入处理管线的原材料，一份完整的 Markdown 文档。一个 Session 对应一份 Content。阅读会话的 Content 来自网页提取；研究会话的 Content 来自搜索聚合后生成的综合报告。
 
 **Tag**（标签）：
-问题的层级分类标记。支持一级/二级层级结构（如"网络安全 → XSS攻击"），由 LLM 从 Content 中自动提炼。对应代码中 `Question.label` 字段和 `tag_management.py` 模块。
+问题的层级分类标记。设计上支持一级/二级层级结构（如"网络安全 → XSS攻击"），由 LLM 从 Content 中自动提炼。**[待实现]** 当前代码中 Tag 为扁平字符串，层级结构尚未实现。对应代码中 `Question.label` 字段和 `tag_management.py` 模块。
 _Avoid_: Label、Category（分类）
 
-**Chunk**（切片）：
-Content 按 Markdown 标题结构和长度约束（1000-3000 字符）切割后的语义片段。每个 Chunk 是问题生成的最小上下文单元。
-_Avoid_: Segment（片段）、Block（块）
-
 **Question**（问题）：
-从 Chunk 内容中由 LLM 自动生成的引导性问答条目。每条 Question 包含问题文本、所属 Tag、以及 answered 状态。Questions 是用户与系统交互的核心载体。
+从 Content 中由 LLM 自动生成的引导性问答条目。每条 Question 包含问题文本、所属 Tag、以及 answered 状态。Questions 是用户与系统交互的核心载体。
 _Avoid_: Query（查询）、Prompt（提示词）
 
 ## 流程
 
 **Content Status**（内容处理状态）：
-Content 在管线中的四阶段状态机：
+Content 在管线中的两层状态机：
+
+**领域层**（持久化/API 接口用）：
 
 | 状态 | 含义 |
 |------|------|
 | **Pending** | 已上传，排队等待处理 |
-| **Processing** | 正在分块和生成问题 |
-| **Completed** | 问题生成完毕，Session 可交互 |
+| **Processing** | 正在处理中（详见流水线子状态） |
+| **Completed** | 处理完毕，Session 可交互 |
 | **Failed** | 处理出错 |
 
-状态转换方向：Pending → Processing → Completed（成功）或 Failed（失败）。运维上通过 Redis 追踪（TTL 7 天）。
+**流水线层**（Processing 的子状态，UI 进度用）：
+
+| 子状态 | 含义 |
+|--------|------|
+| **idle** | 初始化，等待开始 |
+| **extracting** | 从页面提取内容 |
+| **uploading** | 上传 Content 到服务端 |
+| **generating** | LLM 生成问题 |
+
+状态转换方向：Pending → Processing（进入流水线子状态：idle → extracting → uploading → generating）→ Completed（成功）或 Failed（失败）。运维上通过 Redis 追踪（TTL 7 天）。对应代码中 `statusTracker.cjs` 管理流水线状态。

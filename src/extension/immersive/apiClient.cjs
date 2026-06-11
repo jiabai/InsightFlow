@@ -13,7 +13,7 @@ class ImmersiveAPI {
     this._userId = userId;
   }
 
-  /** Upload markdown content → { file_id, ... } */
+  /** Upload markdown content → { content_id, ... } */
   async upload(content) {
     const formData = new FormData();
     formData.append('file', new Blob([content], { type: 'text/markdown' }), 'page.md');
@@ -24,16 +24,16 @@ class ImmersiveAPI {
     return r.json();
   }
 
-  /** Get file processing status → { file_id, status } */
-  async getStatus(fileId) {
-    const r = await fetch(`${this._base}/file_status/${fileId}`);
+  /** Get content processing status → { content_id, status } */
+  async getStatus(contentId) {
+    const r = await fetch(`${this._base}/content_status/${contentId}`);
     if (!r.ok) throw new Error(`Status check failed: ${r.status}`);
     return r.json();
   }
 
   /** Trigger question generation → 202 Accepted */
-  async generateQuestions(fileId) {
-    const r = await fetch(`${this._base}/questions/generate/${this._userId}/${fileId}`, {
+  async generateQuestions(contentId) {
+    const r = await fetch(`${this._base}/questions/generate/${this._userId}/${contentId}`, {
       method: 'POST',
     });
     if (!r.ok) throw new Error(`Generate failed: ${r.status}`);
@@ -41,17 +41,17 @@ class ImmersiveAPI {
   }
 
   /** Fetch generated questions → [{ question, label, ... }] */
-  async getQuestions(fileId) {
-    const r = await fetch(`${this._base}/questions/${fileId}`);
+  async getQuestions(contentId) {
+    const r = await fetch(`${this._base}/questions/${contentId}`);
     if (!r.ok) throw new Error(`Questions fetch failed: ${r.status}`);
     return r.json();
   }
 
   /** Poll until status becomes "Completed" or fails */
-  async waitForCompletion(fileId, { interval = 1000, timeout = 60000 } = {}) {
+  async waitForCompletion(contentId, { interval = 1000, timeout = 60000 } = {}) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const s = await this.getStatus(fileId);
+      const s = await this.getStatus(contentId);
       if (s.status === 'Completed') return s;
       if (s.status === 'Failed') throw new Error('Processing failed');
       await new Promise(r => setTimeout(r, interval));

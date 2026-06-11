@@ -1,0 +1,49 @@
+{
+  "extName": {
+    "message": "Asistente de pensamiento con IA",
+    "description": "Nombre de la extensión"
+  },
+  "extDescription": {
+    "message": "Genera preguntas heurísticas y respuestas profundas para ayudar a comprender mejor el contenido.",
+    "description": "Descripción de la extensión"
+  },
+  "unsupportedPage": {
+    "message": "La página actual no admite sesiones de lectura"
+  },
+  "unreadableSite": {
+    "message": "Este sitio no admite sesiones de lectura"
+  },
+  "extractContentFailed": {
+    "message": "No se pudo extraer contenido legible"
+  },
+  "enterReadingSessionFailed": {
+    "message": "No se pudo iniciar la sesión de lectura"
+  },
+  "immersiveReadingLabel": {
+    "message": "Lectura inmersiva"
+  },
+  "generateQuestionsTooltip": {
+    "message": "Generar preguntas"
+  },
+  "exitReadingModeTooltip": {
+    "message": "Salir del modo de lectura"
+  },
+  "questionsLabel": {
+    "message": "Preguntas"
+  },
+  "noQuestionsGenerated": {
+    "message": "No se generaron preguntas"
+  },
+  "generatingQuestions": {
+    "message": "Generando preguntas..."
+  },
+  "failedToGenerateQuestions": {
+    "message": "No se pudieron generar las preguntas"
+  },
+  "extensionMessagingUnavailable": {
+    "message": "La mensajería de la extensión no está disponible"
+  },
+  "pageContentTooShort": {
+    "message": "El contenido de la página tiene menos de $1 caracteres"
+  }
+}

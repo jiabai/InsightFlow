@@ -1,15 +1,15 @@
 /**
- * 上传结果数据类接口
- * 表示文件上传到服务器后的响应数据结构
+ * 内容上传结果接口
+ * 表示内容上传到服务器后的响应数据结构
  */
 export interface UploadResult {
-  /** 文件唯一标识符 */
-  file_id: string;
+  /** 内容唯一标识符 */
+  content_id: string;
   /** 原始文件名 */
   filename: string;
-  /** 文件大小(字节) */
+  /** 内容大小(字节) */
   size: number;
-  /** 文件类型 */
+  /** 内容类型 */
   type: string;
   /** 上传时间 */
   upload_time: string;
@@ -20,11 +20,12 @@ export interface UploadResult {
 }
 
 /**
- * 上传状态枚举
- * 定义了可能的上传状态值
+ * 内容处理状态枚举
+ * 领域层状态：Pending → Processing → Completed / Failed
  */
-export enum UploadStatus {
-  COMPLETED = 'Upload Completed',
+export enum ContentStatus {
+  PENDING = 'Pending',
   PROCESSING = 'Processing',
-  FAILED = 'Upload Failed'
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
 }

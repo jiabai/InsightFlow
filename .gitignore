@@ -1,6 +1,7 @@
 node_modules/
 upload_file/
 completed/
+Clearly-Reader/
 src/server/llm_knowledge_processing/__pycache__/
 src/server/common/__pycache__/
 src/server/logs/

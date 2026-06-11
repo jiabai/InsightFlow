@@ -1,7 +1,11 @@
 /**
- * StatusTracker — manages UI status states for the immersive reader pipeline.
+ * StatusTracker — manages two-layer status for the immersive reader pipeline.
  *
- * States: idle → extracting → uploading → generating → done | failed | empty
+ * Domain layer (persisted / API):
+ *   Pending → Processing → Completed / Failed
+ *
+ * Pipeline layer (UI progress, sub-states of Processing):
+ *   idle → extracting → uploading → generating → done | failed | empty
  */
 
 const STATES = {
@@ -12,6 +16,17 @@ const STATES = {
   DONE: 'done',
   FAILED: 'failed',
   EMPTY: 'empty',
+};
+
+/** Domain-level status mapping from pipeline state */
+const PIPELINE_TO_DOMAIN = {
+  [STATES.IDLE]: 'Pending',
+  [STATES.EXTRACTING]: 'Processing',
+  [STATES.UPLOADING]: 'Processing',
+  [STATES.GENERATING]: 'Processing',
+  [STATES.DONE]: 'Completed',
+  [STATES.FAILED]: 'Failed',
+  [STATES.EMPTY]: 'Failed',
 };
 
 const STATE_MESSAGES = {
@@ -28,10 +43,10 @@ class StatusTracker {
   constructor() {
     this._state = STATES.IDLE;
     this._error = null;
-    this._progress = 0; // 0-100
+    this._progress = 0;
   }
 
-  /** Transition to a new state */
+  /** Transition to a new pipeline state */
   setState(state, error = null) {
     if (!STATES[state.toUpperCase()]) {
       this._state = STATES.FAILED;
@@ -43,6 +58,8 @@ class StatusTracker {
   }
 
   get state() { return this._state; }
+  /** Domain-level status derived from pipeline state */
+  get domainStatus() { return PIPELINE_TO_DOMAIN[this._state] || 'Pending'; }
   get message() { return STATE_MESSAGES[this._state] || ''; }
   get error() { return this._error; }
   get progress() { return this._progress; }
@@ -62,5 +79,5 @@ class StatusTracker {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { StatusTracker, STATES };
+  module.exports = { StatusTracker, STATES, PIPELINE_TO_DOMAIN };
 }

@@ -1,0 +1,49 @@
+{
+  "extName": {
+    "message": "AI 思考アシスタント",
+    "description": "拡張機能名"
+  },
+  "extDescription": {
+    "message": "発見につながる質問と深い回答を生成し、コンテンツ理解を支援します。",
+    "description": "拡張機能の説明"
+  },
+  "unsupportedPage": {
+    "message": "現在のページは読書セッションに対応していません"
+  },
+  "unreadableSite": {
+    "message": "このサイトは読書セッションに対応していません"
+  },
+  "extractContentFailed": {
+    "message": "読み取り可能なコンテンツを抽出できませんでした"
+  },
+  "enterReadingSessionFailed": {
+    "message": "読書セッションを開始できません"
+  },
+  "immersiveReadingLabel": {
+    "message": "没入型リーディング"
+  },
+  "generateQuestionsTooltip": {
+    "message": "質問を生成"
+  },
+  "exitReadingModeTooltip": {
+    "message": "読書モードを終了"
+  },
+  "questionsLabel": {
+    "message": "質問"
+  },
+  "noQuestionsGenerated": {
+    "message": "質問は生成されませんでした"
+  },
+  "generatingQuestions": {
+    "message": "質問を生成しています..."
+  },
+  "failedToGenerateQuestions": {
+    "message": "質問の生成に失敗しました"
+  },
+  "extensionMessagingUnavailable": {
+    "message": "拡張機能のメッセージ通信を利用できません"
+  },
+  "pageContentTooShort": {
+    "message": "ページ内容が $1 文字未満です"
+  }
+}
