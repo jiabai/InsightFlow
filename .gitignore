@@ -9,8 +9,8 @@ completed/
 status_store/
 data/
 Clearly-Reader/
-src/server/llm_knowledge_processing/__pycache__/
-src/server/common/__pycache__/
 src/server/logs/
-src/server/api_services/__pycache__/
-src/server/__pycache__/
+
+# Python 字节码
+__pycache__/
+*.pyc
