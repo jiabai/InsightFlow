@@ -30,8 +30,18 @@ from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 running_services = set()
 background_tasks = set()
-MAX_CONCURRENT_TASKS = 10
+DEFAULT_MAX_CONCURRENT_TASKS = 10
 router = APIRouter()
+
+
+def get_max_concurrent_tasks() -> int:
+    """Return the configured background question generation concurrency limit."""
+    raw_limit = os.getenv("INSIGHTFLOW_MAX_CONCURRENT_TASKS", str(DEFAULT_MAX_CONCURRENT_TASKS))
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_CONCURRENT_TASKS
+    return limit if limit > 0 else DEFAULT_MAX_CONCURRENT_TASKS
 
 
 async def get_database_manager(request: Request) -> InsightRepository:
@@ -129,7 +139,8 @@ async def generate_questions(
     )
 
     if file_id not in running_services:
-        if len(background_tasks) < MAX_CONCURRENT_TASKS:
+        max_concurrent_tasks = get_max_concurrent_tasks()
+        if len(background_tasks) < max_concurrent_tasks:
             task_name = f"run_service:{file_id}"
             task = asyncio.create_task(run_service(service), name=task_name)
             background_tasks.add(task)
@@ -160,7 +171,7 @@ async def generate_questions(
                 "questions generate backpressure file_id=%s background_tasks=%d max=%d",
                 file_id,
                 len(background_tasks),
-                MAX_CONCURRENT_TASKS,
+                max_concurrent_tasks,
             )
             return {"message": f"Max concurrent tasks reached, processing for file_id: {file_id}"}
     else:

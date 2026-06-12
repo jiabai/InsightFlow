@@ -13,3 +13,4 @@ src/server/llm_knowledge_processing/__pycache__/
 src/server/common/__pycache__/
 src/server/logs/
 src/server/api_services/__pycache__/
+src/server/__pycache__/
