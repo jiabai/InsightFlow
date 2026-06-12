@@ -39,8 +39,8 @@ from server.llm_knowledge_processing.llm_gateway import LLMGateway
 
 
 def _get_log_level() -> int:
-    raw_level = os.getenv("INSIGHTFLOW_LOG_LEVEL", "DEBUG").upper()
-    return getattr(logging, raw_level, logging.DEBUG)
+    raw_level = os.getenv("INSIGHTFLOW_LOG_LEVEL", "INFO").upper()
+    return getattr(logging, raw_level, logging.INFO)
 
 
 def _get_log_console_enabled() -> bool:

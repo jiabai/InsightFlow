@@ -285,7 +285,7 @@ class InsightSQLiteRepository(InsightRepository):
                     file_id=file_id,
                     chunk_id=chunk_id,
                     question=question["question"],
-                    label=question.get("label", "uncategorized"),
+                    label=question.get("label") or "",
                 )
                 for question in questions
             ]

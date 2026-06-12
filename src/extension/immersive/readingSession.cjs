@@ -736,19 +736,37 @@ function startReadingSession(siteRules = null) {
       }
       #question-sidebar {
         display: none !important;
-        margin: 0 30px 34px !important;
+        position: fixed !important;
+        top: 96px !important;
+        right: max(24px, calc((100vw - 1700px) / 2 + 24px)) !important;
+        z-index: 6 !important;
+        width: min(380px, calc(100vw - 48px)) !important;
+        max-height: calc(100vh - 120px) !important;
+        overflow: auto !important;
+        margin: 0 !important;
         padding: 18px 20px !important;
-        border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        border-radius: 8px !important;
+        background: #0f0f0f !important;
         color: #eeeeee !important;
+        box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42) !important;
+        cursor: grab !important;
       }
       #question-sidebar.is-active {
         display: block !important;
+      }
+      #question-sidebar.is-dragging,
+      #question-sidebar.is-dragging * {
+        cursor: grabbing !important;
+        user-select: none !important;
       }
       #question-sidebar .question-title {
         margin: 0 0 12px !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         color: #ffffff !important;
+        cursor: grab !important;
+        user-select: none !important;
       }
       #question-sidebar .question-card {
         margin: 10px 0 !important;
@@ -759,6 +777,12 @@ function startReadingSession(siteRules = null) {
         color: #eeeeee !important;
         font-size: 16px !important;
         line-height: 1.45 !important;
+        cursor: text !important;
+        user-select: text !important;
+      }
+      #question-sidebar .question-card * {
+        cursor: text !important;
+        user-select: text !important;
       }
       @media (max-width: 900px) {
         #insight-flow-header {
@@ -800,6 +824,13 @@ function startReadingSession(siteRules = null) {
         #immersive-content-area .insight-flow-article {
           margin-top: 1em !important;
           padding-bottom: 42px !important;
+        }
+        #question-sidebar {
+          top: 88px !important;
+          right: 16px !important;
+          left: 16px !important;
+          width: auto !important;
+          max-height: min(52vh, 460px) !important;
         }
       }
     `;
@@ -860,12 +891,14 @@ function startReadingSession(siteRules = null) {
     const sidebar = document.createElement('aside');
     sidebar.id = 'question-sidebar';
     sidebar.setAttribute('aria-label', messages.questions);
+    const cleanupSidebarDragging = setupSidebarDragging(sidebar);
 
     reader.append(actions, content, sidebar);
     shell.append(reader);
     container.append(header, shell);
 
     const cleanup = () => {
+      cleanupSidebarDragging();
       style.remove();
       container.remove();
       document.documentElement.style.overflow = previousHtmlOverflow;
@@ -1097,6 +1130,118 @@ function startReadingSession(siteRules = null) {
     }
   }
 
+  function setupSidebarDragging(sidebar) {
+    const state = {
+      active: false,
+      pointerId: null,
+      offsetX: 0,
+      offsetY: 0,
+      previousBodyUserSelect: '',
+    };
+
+    const stopDrag = (event = null) => {
+      if (!state.active) return;
+      if (event && event.pointerId !== state.pointerId) return;
+
+      state.active = false;
+      sidebar.classList.remove('is-dragging');
+      document.body.style.userSelect = state.previousBodyUserSelect;
+
+      try {
+        if (state.pointerId !== null && typeof sidebar.releasePointerCapture === 'function') {
+          sidebar.releasePointerCapture(state.pointerId);
+        }
+      } catch {
+        // Pointer capture can already be released by the browser.
+      }
+
+      state.pointerId = null;
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointercancel', onPointerUp, true);
+    };
+
+    const onPointerMove = (event) => {
+      if (!state.active || event.pointerId !== state.pointerId) return;
+
+      const nextPosition = clampSidebarPosition(
+        sidebar,
+        event.clientX - state.offsetX,
+        event.clientY - state.offsetY,
+      );
+
+      sidebar.style.left = `${nextPosition.left}px`;
+      sidebar.style.top = `${nextPosition.top}px`;
+      sidebar.style.right = 'auto';
+      event.preventDefault();
+    };
+
+    const onPointerUp = (event) => {
+      stopDrag(event);
+    };
+
+    const onPointerDown = (event) => {
+      if (event.pointerType !== 'mouse' || event.button !== 0) return;
+      if (!sidebar.classList.contains('is-active')) return;
+      if (isSidebarDragBlockedTarget(event.target)) return;
+
+      const rect = sidebar.getBoundingClientRect();
+      state.active = true;
+      state.pointerId = event.pointerId;
+      state.offsetX = event.clientX - rect.left;
+      state.offsetY = event.clientY - rect.top;
+      state.previousBodyUserSelect = document.body.style.userSelect;
+
+      sidebar.classList.add('is-dragging');
+      document.body.style.userSelect = 'none';
+
+      try {
+        if (typeof sidebar.setPointerCapture === 'function') {
+          sidebar.setPointerCapture(event.pointerId);
+        }
+      } catch {
+        // Pointer capture is an enhancement; document listeners keep dragging working.
+      }
+
+      document.addEventListener('pointermove', onPointerMove, true);
+      document.addEventListener('pointerup', onPointerUp, true);
+      document.addEventListener('pointercancel', onPointerUp, true);
+      event.preventDefault();
+    };
+
+    sidebar.addEventListener('pointerdown', onPointerDown);
+
+    return () => {
+      stopDrag();
+      sidebar.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointercancel', onPointerUp, true);
+    };
+  }
+
+  function isSidebarDragBlockedTarget(target) {
+    if (!target || typeof target.closest !== 'function') return false;
+
+    return Boolean(
+      target.closest('.question-card, a, button, input, textarea, select, [contenteditable="true"]'),
+    );
+  }
+
+  function clampSidebarPosition(sidebar, left, top) {
+    const margin = 8;
+    const rect = sidebar.getBoundingClientRect();
+    const width = rect.width || sidebar.offsetWidth || 320;
+    const height = rect.height || sidebar.offsetHeight || 240;
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+    return {
+      left: Math.min(Math.max(left, margin), maxLeft),
+      top: Math.min(Math.max(top, margin), maxTop),
+    };
+  }
+
   function renderSidebarStatus(sidebar, message) {
     sidebar.classList.add('is-active');
     sidebar.textContent = '';
@@ -1119,9 +1264,37 @@ function startReadingSession(siteRules = null) {
     for (const item of questions) {
       const card = document.createElement('div');
       card.className = 'question-card';
-      card.textContent = item.label ? `${item.label}: ${item.question}` : item.question;
+      card.textContent = formatQuestionCardText(item);
       sidebar.append(card);
     }
+  }
+
+  function formatQuestionCardText(item) {
+    const question = String(item?.question || '').trim();
+    const label = String(item?.label || '').trim();
+
+    if (!isVisibleQuestionLabel(label)) {
+      return question;
+    }
+
+    return `${label}: ${question}`;
+  }
+
+  function isVisibleQuestionLabel(label) {
+    const normalized = String(label || '').trim().toLowerCase();
+    const hiddenFallbackLabels = new Set([
+      'uncategorized',
+      'unlabelled',
+      'unlabeled',
+      'undefined',
+      'null',
+      'none',
+      '其他',
+      '其它',
+      '未分类',
+    ]);
+
+    return Boolean(normalized) && !hiddenFallbackLabels.has(normalized);
   }
 
   function createActionIcon() {

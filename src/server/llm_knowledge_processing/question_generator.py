@@ -120,6 +120,6 @@ class QuestionGenerator:
         labeled_questions = extract_json_from_llm_output(labeled_response)
 
         if not labeled_questions:
-            logger.warning("Failed to add labels to questions. Using unlabelled questions.")
-            labeled_questions = [{'question': q, 'label': 'unlabelled'} for q in questions]
+            logger.warning("Failed to add labels to questions. Using empty labels.")
+            labeled_questions = [{'question': q, 'label': ''} for q in questions]
         return labeled_questions

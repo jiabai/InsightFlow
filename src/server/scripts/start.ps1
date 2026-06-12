@@ -44,10 +44,24 @@ $BindHost = if ($env:SERVER_HOST) { $env:SERVER_HOST } else { "0.0.0.0" }
 $Port = if ($env:SERVER_PORT) { $env:SERVER_PORT } else { "8080" }
 
 if (-not $env:INSIGHTFLOW_LOG_LEVEL) {
-    $env:INSIGHTFLOW_LOG_LEVEL = "DEBUG"
+    $env:INSIGHTFLOW_LOG_LEVEL = "INFO"
 }
 if (-not $env:INSIGHTFLOW_LOG_CONSOLE) {
-    $env:INSIGHTFLOW_LOG_CONSOLE = "1"
+    $env:INSIGHTFLOW_LOG_CONSOLE = "0"
+}
+
+$ConsoleLogEnabled = $env:INSIGHTFLOW_LOG_CONSOLE -match "^(1|true|yes|on)$"
+$UvicornLogLevel = if ($env:UVICORN_LOG_LEVEL) {
+    $env:UVICORN_LOG_LEVEL
+} elseif ($ConsoleLogEnabled) {
+    "info"
+} else {
+    "warning"
+}
+$UvicornAccessLogArgs = if ($env:UVICORN_ACCESS_LOG -match "^(1|true|yes|on)$") {
+    @()
+} else {
+    @("--no-access-log")
 }
 
 # Set PYTHONPATH
@@ -57,7 +71,8 @@ Write-Host "    Listening on: http://localhost:$Port" -ForegroundColor Green
 Write-Host "    API docs:     http://localhost:$Port/docs" -ForegroundColor Green
 Write-Host "    Log level:    $env:INSIGHTFLOW_LOG_LEVEL"
 Write-Host "    Console log:  $env:INSIGHTFLOW_LOG_CONSOLE"
+Write-Host "    Uvicorn log:  $UvicornLogLevel"
 Write-Host ""
 
 $env:PYTHONPATH = "$ProjectRoot\src;$env:PYTHONPATH"
-python -m uvicorn server.main:app --app-dir src --host $BindHost --port $Port --reload
+python -m uvicorn server.main:app --app-dir src --host $BindHost --port $Port --reload --log-level $UvicornLogLevel @UvicornAccessLogArgs

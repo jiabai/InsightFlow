@@ -166,7 +166,7 @@ class InsightMemoryRepository(InsightRepository):
         count = 0
         for q in questions:
             qo = self._make_question(user_id, file_id, chunk_id,
-                                      q["question"], q.get("label", "uncategorized"))
+                                      q["question"], q.get("label") or "")
             self._questions.append(qo)
             count += 1
         return count
