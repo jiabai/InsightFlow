@@ -13,15 +13,18 @@ def extract_json_from_llm_output(output):
     Returns:
         dict or list or None: 解析后的 JSON 对象或列表，如果解析失败则返回 None。
     """
+    if not output or not isinstance(output, str):
+        return None
     try:
         return json.loads(output)
-    except json.JSONDecodeError:
-        match = re.search(r'```json\n(.*)\n```', output, re.DOTALL)
+    except (json.JSONDecodeError, TypeError):
+        match = re.search(r'```(?:json)?\s*(.*?)\s*```', output, re.DOTALL)
         if match:
             try:
                 return json.loads(match.group(1))
             except json.JSONDecodeError:
                 return None
+    return None
 
 def get_question_prompt(
     text,

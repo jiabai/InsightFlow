@@ -2,7 +2,7 @@ import io
 import os
 import aiofiles
 import aiofiles.os
-from server.common.storage_interface import StorageInterface
+from server.common.storage_interface import StorageInterface, sanitize_path_component
 from server.common.exceptions import StorageError
 
 class LocalStorage(StorageInterface):
@@ -15,7 +15,9 @@ class LocalStorage(StorageInterface):
         os.makedirs(self.base_dir, exist_ok=True)
 
     async def upload_file(self, file_content: bytes, unique_filename: str, custom_dir: str = None):
+        unique_filename = sanitize_path_component(unique_filename)
         if custom_dir:
+            custom_dir = sanitize_path_component(custom_dir)
             target_dir = os.path.join(self.base_dir, custom_dir)
             os.makedirs(target_dir, exist_ok=True)
             file_path = os.path.join(target_dir, unique_filename)
@@ -29,8 +31,9 @@ class LocalStorage(StorageInterface):
             raise StorageError(f"Failed to upload file {unique_filename}: {e}") from e
 
     async def download_file(self, unique_filename: str, custom_dir: str = None) -> io.BytesIO:
+        unique_filename = sanitize_path_component(unique_filename)
         if custom_dir:
-            file_path = os.path.join(self.base_dir, custom_dir, unique_filename)
+            file_path = os.path.join(self.base_dir, sanitize_path_component(custom_dir), unique_filename)
         else:
             file_path = os.path.join(self.base_dir, unique_filename)
         try:
@@ -45,8 +48,9 @@ class LocalStorage(StorageInterface):
             raise StorageError(f"Failed to download file {unique_filename}: {e}") from e
 
     async def delete_file(self, unique_filename: str, custom_dir: str = None):
+        unique_filename = sanitize_path_component(unique_filename)
         if custom_dir:
-            file_path = os.path.join(self.base_dir, custom_dir, unique_filename)
+            file_path = os.path.join(self.base_dir, sanitize_path_component(custom_dir), unique_filename)
         else:
             file_path = os.path.join(self.base_dir, unique_filename)
         try:

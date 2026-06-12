@@ -109,7 +109,7 @@ const {
 
 const {
   isExpanded, displayedAnswers, loadingIndex, isLoadingAnswer,
-  initialize: initQuestionStates, toggleQuestion,
+  toggleQuestion,
 } = useQuestionList(questions);
 
 const { convertToMarkdown, status } = useMarkdownConverter();

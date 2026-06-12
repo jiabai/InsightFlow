@@ -85,7 +85,6 @@ async def run_service(service: KnowledgeProcessingService):
     """
     logger = get_logger()
     try:
-        running_services.add(service.file_id)
         logger.info("Job %s has started running. Current tasks: %d",
                    service.file_id, len(asyncio.all_tasks()))
         await service.run()
@@ -141,6 +140,10 @@ async def generate_questions(
     if file_id not in running_services:
         max_concurrent_tasks = get_max_concurrent_tasks()
         if len(background_tasks) < max_concurrent_tasks:
+            # Mark as running synchronously (before the first await) so two
+            # concurrent requests for the same file_id cannot both pass the
+            # `file_id not in running_services` check and spawn duplicate work.
+            running_services.add(file_id)
             task_name = f"run_service:{file_id}"
             task = asyncio.create_task(run_service(service), name=task_name)
             background_tasks.add(task)
@@ -230,21 +233,24 @@ async def get_questions_by_file(
         logger.debug("questions fetch start file_id=%s", file_id)
         status = await status_store.get_file_status(file_id)
         if status != "Completed":
-            raise StatusStoreError(f"File processing not completed, current status: {status}")
+            raise HTTPException(
+                status_code=409,
+                detail=f"File processing not completed, current status: {status}"
+            )
         logger.debug("questions fetch status file_id=%s status=%s", file_id, status)
 
         # 获取文件关联的所有chunks
         async with db_mgr.get_db() as db:
             chunks: List[Chunk] = await db_mgr.get_chunks_by_file_id(db, file_id)
-            if not chunks:
-                raise DatabaseError(f"No chunks found for file_id {file_id}")
             logger.debug("questions fetch chunks file_id=%s chunk_count=%d", file_id, len(chunks))
         # 收集所有问题
             all_questions = []
             for chunk in chunks:
                 questions = await db_mgr.get_questions_by_chunk_id(db, chunk.id)
                 if not questions:
-                    raise DatabaseError(f"No questions found for chunk_id {chunk.id}")
+                    # A chunk with no questions is a normal partial state; skip it
+                    # rather than failing the whole response.
+                    continue
                 all_questions.extend([{
                     "question_id": q.id,
                     "question": q.question,

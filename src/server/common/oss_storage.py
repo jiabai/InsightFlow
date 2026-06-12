@@ -2,7 +2,7 @@ import io
 import os
 import oss2
 from starlette.concurrency import run_in_threadpool
-from server.common.storage_interface import StorageInterface
+from server.common.storage_interface import StorageInterface, sanitize_path_component
 from server.common.exceptions import StorageError
 
 class OSSStorage(StorageInterface):
@@ -27,6 +27,8 @@ class OSSStorage(StorageInterface):
             raise StorageError(f"Failed to connect to OSS or invalid credentials: {e}") from e
 
     async def upload_file(self, file_content: bytes, unique_filename: str, custom_dir: str = None):
+        unique_filename = sanitize_path_component(unique_filename)
+        custom_dir = sanitize_path_component(custom_dir) if custom_dir else custom_dir
         try:
             oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
             await run_in_threadpool(self.bucket.put_object, oss_path, file_content)
@@ -34,6 +36,8 @@ class OSSStorage(StorageInterface):
             raise StorageError(f"Failed to upload file {unique_filename} to OSS: {e}") from e
 
     async def download_file(self, unique_filename: str, custom_dir: str = None) -> io.BytesIO:
+        unique_filename = sanitize_path_component(unique_filename)
+        custom_dir = sanitize_path_component(custom_dir) if custom_dir else custom_dir
         try:
             oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
             response = await run_in_threadpool(self.bucket.get_object, oss_path)
@@ -47,6 +51,8 @@ class OSSStorage(StorageInterface):
             raise StorageError(f"Failed to download file {unique_filename} from OSS: {e}") from e
 
     async def delete_file(self, unique_filename: str, custom_dir: str = None):
+        unique_filename = sanitize_path_component(unique_filename)
+        custom_dir = sanitize_path_component(custom_dir) if custom_dir else custom_dir
         try:
             oss_path = f"{custom_dir}/{unique_filename}" if custom_dir else unique_filename
             await run_in_threadpool(self.bucket.delete_object, oss_path)

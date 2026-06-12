@@ -195,8 +195,6 @@ async def get_all_files(
     try:
         async with db_mgr.get_db() as db:
             file_metadata_list: List[FileMetadata] = await db_mgr.get_all_file_metadata(db)
-        if not file_metadata_list:
-            raise DatabaseError("No files found in the database")
         logger.debug("Found %d files in the database", len(file_metadata_list))
 
         file_metadata_response: List[FileMetadataResponse] = [
@@ -251,8 +249,6 @@ async def get_files_by_user(
                 skip=skip,
                 limit=limit
             )
-        if not results:
-            raise DatabaseError(f"User {user_id} has no files")
         logger.debug("Found %d files for user %s", len(results), user_id)
 
         file_metadata_response: List[FileMetadataResponse] = [
@@ -399,12 +395,15 @@ async def delete_file(
         logger.debug("Deleted file status for file_id %s from local status store.", file_id)
 
         return {"message": f"File {file_metadata.filename} deleted successfully"}
-    except Exception as e:
+    except DatabaseError as e:
+        logger.warning("Delete: file not found for file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=404, detail="File not found") from e
+    except (StorageError, StatusStoreError) as e:
         logger.error("Failed to delete file with file_id %s: %s", file_id, str(e))
-        raise HTTPException(
-            status_code=404,
-            detail=f"Internal server error: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+    except Exception as e:
+        logger.error("Unexpected error deleting file with file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=500, detail="Internal server error") from e
 
 @router.get("/file_status/{file_id}")
 async def file_status(
@@ -477,11 +476,12 @@ async def download_file(
     """
     logger = get_logger()
     try:
-        file_metadata = await db_mgr.get_file_metadata_by_userid_and_fileid(
-            db=db_mgr,
-            user_id=user_id,
-            file_id=file_id
-        )
+        async with db_mgr.get_db() as db:
+            file_metadata = await db_mgr.get_file_metadata_by_userid_and_fileid(
+                db=db,
+                user_id=user_id,
+                file_id=file_id
+            )
         if not file_metadata:
             raise DatabaseError(f"File metadata not found for file_id {file_id}")
         logger.debug("Found file metadata for file_id %s", file_id)
@@ -502,6 +502,9 @@ async def download_file(
                 "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"
             }
         )
+    except (DatabaseError, FileNotFoundError) as e:
+        logger.warning("Download: file not found for file_id %s: %s", file_id, str(e))
+        raise HTTPException(status_code=404, detail="File not found") from e
     except Exception as e:
         logger.error("Failed to download file with file_id %s: %s", file_id, str(e))
         raise HTTPException(status_code=500, detail="Internal server error") from e

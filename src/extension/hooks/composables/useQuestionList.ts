@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import type { QuestionItem } from '@/lib/questionTypes';
 import { generateAnswer } from '@/entrypoints/services/apiService';
 import type { GenerateAnswerResponse } from '@/entrypoints/services/apiService';
@@ -29,6 +29,15 @@ export function useQuestionList(questions: Ref<QuestionItem[]>) {
     typingCursors.value = Array(count).fill(false);
     typingIntervals = Array(count).fill(null);
   }
+
+  // Keep the per-question state arrays sized to the current question list.
+  // Without this, isExpanded stays [] and toggleQuestion's `.map` over an
+  // empty array never expands anything.
+  watch(
+    questions,
+    (newQuestions) => initialize(newQuestions?.length ?? 0),
+    { immediate: true }
+  );
 
   /** Toggle question expansion and load answer if needed. */
   async function toggleQuestion(index: number) {
