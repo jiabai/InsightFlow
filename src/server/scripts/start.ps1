@@ -24,10 +24,50 @@ if (-not (Test-Path "src\.env")) {
     exit 1
 }
 
-# Activate virtualenv if present
-if (Test-Path ".venv") {
-    & ".venv\Scripts\Activate.ps1"
-    Write-Host "    Virtualenv activated"
+# ------------------------------------------------------------
+# Resolve the Python interpreter to launch with.
+# Priority: project-root .venv  ->  $env:INSIGHTFLOW_VENV  ->  fallback default.
+# Override the fallback by setting INSIGHTFLOW_VENV to your venv directory.
+# ------------------------------------------------------------
+$ProjectVenv  = Join-Path $ProjectRoot ".venv"
+if ($env:INSIGHTFLOW_VENV) { $FallbackVenv = $env:INSIGHTFLOW_VENV } else { $FallbackVenv = "D:\Code\.venv" }
+
+$PythonExe  = $null
+$VenvChosen = $null
+foreach ($venv in @($ProjectVenv, $FallbackVenv)) {
+    if ($venv) {
+        $candidate = Join-Path $venv "Scripts\python.exe"
+        if (Test-Path $candidate) { $PythonExe = $candidate; $VenvChosen = $venv; break }
+    }
+}
+
+if ($PythonExe) {
+    Write-Host "    Virtualenv:   $VenvChosen"
+    $activate = Join-Path $VenvChosen "Scripts\Activate.ps1"
+    if (Test-Path $activate) { & $activate }
+} else {
+    Write-Host "[WARN] No virtualenv found (project '.venv' or fallback '$FallbackVenv')." -ForegroundColor Yellow
+    Write-Host "       Using 'python' from PATH. Set INSIGHTFLOW_VENV to a venv dir to override." -ForegroundColor Yellow
+    $PythonExe = "python"
+}
+
+# Verify the interpreter exists and actually has the backend deps, so a missing
+# environment fails with a clear message instead of an uvicorn import traceback.
+if (-not (Get-Command $PythonExe -ErrorAction SilentlyContinue)) {
+    Write-Host "[ERROR] Python interpreter not found: $PythonExe" -ForegroundColor Red
+    Write-Host "        Install Python or set INSIGHTFLOW_VENV to a valid venv directory." -ForegroundColor Red
+    exit 1
+}
+
+$hasUvicorn = & $PythonExe -c "import importlib.util as u; print(1 if u.find_spec('uvicorn') else 0)"
+if ("$hasUvicorn".Trim() -ne "1") {
+    Write-Host ""
+    Write-Host "[ERROR] Backend dependencies missing: '$PythonExe' has no 'uvicorn'." -ForegroundColor Red
+    Write-Host "        Fix one of:" -ForegroundColor Red
+    Write-Host "          1. Create a project venv:    python -m venv .venv ; .\.venv\Scripts\Activate.ps1 ; pip install -r requirements.txt" -ForegroundColor Red
+    Write-Host "          2. Point at an existing venv: `$env:INSIGHTFLOW_VENV = '<venv dir>'   (e.g. D:\Code\.venv)" -ForegroundColor Red
+    Write-Host "          3. Install into this one:     $PythonExe -m pip install -r requirements.txt" -ForegroundColor Red
+    exit 1
 }
 
 # Load .env (skip VITE_-prefixed frontend vars)
@@ -74,5 +114,4 @@ Write-Host "    Console log:  $env:INSIGHTFLOW_LOG_CONSOLE"
 Write-Host "    Uvicorn log:  $UvicornLogLevel"
 Write-Host ""
 
-$env:PYTHONPATH = "$ProjectRoot\src;$env:PYTHONPATH"
-python -m uvicorn server.main:app --app-dir src --host $BindHost --port $Port --reload --log-level $UvicornLogLevel @UvicornAccessLogArgs
+& $PythonExe -m uvicorn server.main:app --app-dir src --host $BindHost --port $Port --reload --log-level $UvicornLogLevel @UvicornAccessLogArgs
