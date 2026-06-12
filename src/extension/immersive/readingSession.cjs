@@ -833,6 +833,57 @@ function startReadingSession(siteRules = null) {
           max-height: min(52vh, 460px) !important;
         }
       }
+      #question-sidebar .insight-flow-loading-status {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        margin: 2px 0 14px !important;
+        color: #d6d6d6 !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+      }
+      #question-sidebar .insight-flow-spinner {
+        flex: 0 0 16px !important;
+        width: 16px !important;
+        height: 16px !important;
+        border: 2px solid rgba(255, 255, 255, 0.25) !important;
+        border-top-color: #43bf4f !important;
+        border-radius: 50% !important;
+        animation: insight-flow-spin 0.8s linear infinite !important;
+      }
+      #question-sidebar .insight-flow-skeleton {
+        margin-top: 4px !important;
+      }
+      #question-sidebar .insight-flow-skeleton-card {
+        margin: 10px 0 !important;
+        padding: 12px 14px !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 6px !important;
+        background: #111111 !important;
+      }
+      #question-sidebar .insight-flow-skeleton-line {
+        height: 12px !important;
+        margin: 9px 0 !important;
+        border-radius: 6px !important;
+        background: linear-gradient(90deg, #1c1c1c 25%, #2e2e2e 50%, #1c1c1c 75%) !important;
+        background-size: 200% 100% !important;
+        animation: insight-flow-shimmer 1.4s linear infinite !important;
+      }
+      #question-sidebar .insight-flow-skeleton-line.title {
+        width: 62% !important;
+        height: 15px !important;
+        margin-bottom: 12px !important;
+      }
+      #question-sidebar .insight-flow-skeleton-line.short {
+        width: 44% !important;
+      }
+      @keyframes insight-flow-spin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes insight-flow-shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
     `;
 
     const container = document.createElement('div');
@@ -931,7 +982,7 @@ function startReadingSession(siteRules = null) {
 
   function generateQuestions(content, sidebar, button, requestId) {
     button.disabled = true;
-    renderSidebarStatus(sidebar, `${messages.generatingQuestions} (${shortRequestId(requestId)})`);
+    renderSidebarLoading(sidebar, `${messages.generatingQuestions} (${shortRequestId(requestId)})`);
     debugLog('generate:content-ready', {
       requestId,
       contentLength: content.length,
@@ -1250,6 +1301,49 @@ function startReadingSession(siteRules = null) {
     title.className = 'question-title';
     title.textContent = message;
     sidebar.append(title);
+  }
+
+  function renderSidebarLoading(sidebar, message) {
+    sidebar.classList.add('is-active');
+    sidebar.textContent = '';
+
+    const status = document.createElement('div');
+    status.className = 'insight-flow-loading-status';
+    status.setAttribute('role', 'status');
+
+    const spinner = document.createElement('span');
+    spinner.className = 'insight-flow-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.className = 'insight-flow-loading-text';
+    label.textContent = message;
+
+    status.append(spinner, label);
+    sidebar.append(status);
+
+    const skeleton = document.createElement('div');
+    skeleton.className = 'insight-flow-skeleton';
+    skeleton.setAttribute('aria-hidden', 'true');
+
+    for (let index = 0; index < 3; index += 1) {
+      const card = document.createElement('div');
+      card.className = 'insight-flow-skeleton-card';
+
+      const titleLine = document.createElement('div');
+      titleLine.className = 'insight-flow-skeleton-line title';
+
+      const line = document.createElement('div');
+      line.className = 'insight-flow-skeleton-line';
+
+      const shortLine = document.createElement('div');
+      shortLine.className = 'insight-flow-skeleton-line short';
+
+      card.append(titleLine, line, shortLine);
+      skeleton.append(card);
+    }
+
+    sidebar.append(skeleton);
   }
 
   function renderQuestions(sidebar, questions) {

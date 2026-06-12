@@ -98,10 +98,13 @@ $UvicornLogLevel = if ($env:UVICORN_LOG_LEVEL) {
 } else {
     "warning"
 }
-$UvicornAccessLogArgs = if ($env:UVICORN_ACCESS_LOG -match "^(1|true|yes|on)$") {
-    @()
-} else {
-    @("--no-access-log")
+# 注意: 把 if 表达式结果直接赋给变量时, 单元素数组 @("--no-access-log") 会被
+# 拆包成字符串; 再对字符串做 @ splatting 会逐字符展开(- - n o ...), 导致
+# uvicorn 报 "unexpected extra arguments"。因此先建数组、按条件追加, 保证
+# splatting 时是一个完整参数。
+$UvicornAccessLogArgs = @()
+if ($env:UVICORN_ACCESS_LOG -notmatch "^(1|true|yes|on)$") {
+    $UvicornAccessLogArgs += "--no-access-log"
 }
 
 # Set PYTHONPATH
