@@ -10,6 +10,7 @@ status_store/
 data/
 Clearly-Reader/
 src/server/logs/
+.workbuddy/
 
 # Python 字节码
 __pycache__/
