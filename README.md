@@ -1,450 +1,350 @@
-# InsightFlow
+<div align="center">
 
-## Current Backend Database
+# 💡 InsightFlow
 
-Backend file metadata, chunks, and generated questions are stored in SQLite,
-not MySQL. The default database path is `./data/insight_flow.sqlite3`; override
-it with `SQLITE_DB_PATH`. Existing MySQL data is not migrated automatically.
+### Turn any web article into AI‑crafted questions — read deeper, think sharper.
 
-## Current Backend Status Storage
+A browser extension **+** FastAPI service that extracts the main content of any page,
+drops you into a distraction‑free **immersive reader**, and uses an LLM to generate
+heuristic questions that push you from passive skimming to active thinking.
 
-Backend file processing status is stored in a local JSON file, not Redis.
-The default path is `./status_store/file_statuses.json`; override the directory
-with `LOCAL_STATUS_STORE_DIR`.
+<p>
+<img alt="License" src="https://img.shields.io/badge/License-ISC-3b82f6.svg">
+<img alt="Python" src="https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white">
+<img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white">
+<img alt="Vue 3" src="https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white">
+<img alt="WXT" src="https://img.shields.io/badge/WXT-MV3%20extension-67D4F8">
+<img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white">
+<img alt="LLM" src="https://img.shields.io/badge/LLM-SSE%20streaming-FF6F61">
+</p>
 
-InsightFlow 是一个帮助自媒体/知识工作者进行深度阅读与思考的项目，包含：
-- 浏览器扩展（前端，WXT + Vue3）：提取网页主体内容，提供沉浸式阅读与侧边栏问题/回答面板
-- 知识处理服务（后端，FastAPI）：接收 Markdown 文档，分块、调用 LLM 生成启发式问题，存储与查询
+<p>
+<a href="#-features">Features</a> ·
+<a href="#-quick-start">Quick start</a> ·
+<a href="#-architecture">Architecture</a> ·
+<a href="#-api-reference">API</a> ·
+<a href="#-configuration">Config</a> ·
+<a href="#-deployment">Deploy</a>
+</p>
 
-本 README 与仓库当前源码结构完全对齐（前端位于 src/extension，后端位于 src/server，前端使用 WXT 而非 Vite）。
+</div>
 
+---
 
-## 目录结构
+## 🧭 What is InsightFlow?
 
+InsightFlow helps self‑learners, writers, and knowledge workers read the web more
+deeply. Click the toolbar icon on any article and InsightFlow:
+
+1. **Extracts** the main readable content (Readability / Defuddle + per‑site rules).
+2. **Reframes** it into a clean, full‑screen **immersive reader**.
+3. **Generates questions** with an LLM — chunk by chunk — so you engage with the
+   ideas instead of gliding past them.
+
+Two parts, one repo:
+
+| Part | Stack | What it does |
+| :--- | :--- | :--- |
+| 🧩 **Extension** · `src/extension` | WXT · Vue 3 · MV3 | Content extraction, immersive reader, draggable question sidebar |
+| ⚡ **Backend** · `src/server` | FastAPI · SQLAlchemy / SQLite | Upload, chunking, LLM question generation, streaming answers |
+
+---
+
+## ✨ Features
+
+- 🪄 **One‑click immersive reading** — a toolbar click injects a clean reader over any page; `Esc` or the ✕ button exits.
+- 🤖 **LLM question generation** — heuristic questions per content chunk, surfaced in a draggable sidebar with a shimmer loading state while the model works.
+- 🌊 **Streaming answers** — `/llm/query/stream` emits Server‑Sent Events (OpenAI‑compatible chunks) for token‑by‑token responses.
+- 🔌 **Pluggable providers** — siliconflow / OpenAI / Zhipu / Ollama via env config (default: DeepSeek‑V3.2 on siliconflow).
+- 🗄️ **Zero‑infra persistence** — SQLite + a local JSON status store; no MySQL or Redis required. Switch to Alibaba **OSS** storage with one env var.
+- 🛡️ **Production‑ready ops** — hardened **systemd** unit, **Nginx + HTTPS** template, `/healthz` check, a minimal runtime lock, and a step‑by‑step Ubuntu runbook.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+flowchart TD
+    subgraph EXT["🧩 Browser extension · WXT + Vue 3"]
+        A["Toolbar click → background"] --> B["Immersive reader<br/>+ question sidebar"]
+    end
+
+    B -->|"upload / generate / poll"| D["⚡ FastAPI backend"]
+    D -->|"async task"| E["KnowledgeProcessingService"]
+    E --> F["🤖 LLM provider<br/>(OpenAI-compatible)"]
+    E --> G[("🗄️ SQLite")]
+    E --> H[("📋 JSON status store")]
+    E --> I[("📁 Local / OSS storage")]
+
+    H -->|"status polling"| B
+    G -->|"questions"| B
+
+    classDef accent fill:#4f46e5,stroke:#4338ca,color:#ffffff;
+    class D,F accent;
 ```
+
+<details>
+<summary><b>⏱️ Processing pipeline (sequence)</b></summary>
+
+```mermaid
+sequenceDiagram
+    participant FE as Extension
+    participant API as FastAPI
+    participant KPS as KnowledgeProcessingService
+    participant ST as Storage
+    participant DB as SQLite
+    participant R as Status store
+    participant LLM as LLM
+
+    FE->>API: POST /upload/{user_id} (multipart)
+    API->>ST: store original file
+    API->>DB: save metadata
+    API->>R: status = Pending
+    FE->>API: POST /questions/generate/{user_id}/{file_id}
+    API->>KPS: start background task
+    KPS->>ST: read file
+    KPS->>KPS: split markdown into chunks
+    KPS->>LLM: generate questions per chunk
+    KPS->>DB: save chunks & questions
+    KPS->>R: status = Completed
+    FE->>API: GET /file_status/{file_id}
+    API-->>FE: { status: Completed }
+    FE->>API: GET /questions/{file_id}
+    API-->>FE: { questions: [...] }
+```
+
+</details>
+
+---
+
+## 📁 Project structure
+
+```text
 .
 ├─ src/
-│  ├─ fe/                        # 浏览器扩展前端（WXT + Vue3）
+│  ├─ extension/                  # Browser extension (WXT + Vue 3)
 │  │  ├─ entrypoints/
-│  │  │  ├─ popup/               # 扩展弹窗
-│  │  │  └─ services/
-│  │  │     └─ apiService.ts     # 前端 API 封装（可切换模拟/真实后端）
-│  │  ├─ public/                 # 扩展图标与静态资源（wxt.publicDir）
-│  │  ├─ wxt.config.ts           # WXT 配置（清单、权限、CSP、别名等）
-│  │  ├─ package.json            # 前端脚本（wxt dev/build/zip）
-│  │  └─ ...                     # 组件、hooks、utils、extractors、immersive 等
-│  │
-│  └─ be/                        # 后端：FastAPI 知识处理服务
-│     ├─ api_services/
-│     │  ├─ main.py                # FastAPI 入口（uvicorn --app-dir src）
-│     │  ├─ file_routes.py         # 文件/问题/LLM 流式等 REST 路由
-│     │  └─ shared_resources.py    # 资源初始化（DB/本地状态文件/存储/日志/异步任务）
-│     ├─ common/                   # SQLite/本地状态文件/存储 抽象与实现
-│     │  ├─ insight_sqlite_repository.py # SQLite 连接/模型/CRUD
-│    │  ├─ file_status_store.py   # local JSON status store (LOCAL_STATUS_STORE_DIR)
-│     │  ├─ storage_manager.py     # 本地/OSS 存储选择（STORAGE_TYPE）
-│     │  ├─ local_storage.py
-│     │  └─ oss_storage.py
-│     ├─ llm_knowledge_processing/ # 文档分块、LLM 生成问题、流水线服务
-│     │  ├─ knowledge_processing_service.py
-│     │  ├─ markdown_splitter.py
-│     │  ├─ question_generator.py
-│     │  ├─ llm_client.py
-│     │  ├─ llm_config_manager.py
-│     │  └─ config_manager.py
-│     ├─ scripts/                  # OpenAPI 生成脚本
-│     └─ tests/                    # 后端测试样例
+│  │  │  ├─ popup/                # Popup (index.html→popupmain.ts→WinApp→MainPage; disabled via manifest.exclude)
+│  │  │  ├─ services/apiService.ts   # Frontend API client (talks to the backend)
+│  │  │  └─ background.ts         # Toolbar click → action.onClicked → inject immersive reader
+│  │  ├─ immersive/               # Injected reading session (readingSession.cjs): reader + question sidebar
+│  │  ├─ components/              # MainPage.vue / HomePage.vue
+│  │  ├─ hooks/ extractor/ lib/ sidebar/ utils/   # Composables, content extraction, helpers
+│  │  ├─ public/                  # Extension icons & static assets
+│  │  └─ wxt.config.ts            # WXT manifest, permissions, CSP, aliases
+│  ├─ server/                     # Backend: FastAPI knowledge-processing service
+│  │  ├─ main.py                  # FastAPI entry (uvicorn server.main:app --app-dir src)
+│  │  ├─ api_services/            # Routes: file / question / llm + shared_resources + logger
+│  │  ├─ common/                  # SQLite / status store / storage abstractions
+│  │  ├─ llm_knowledge_processing/   # Chunking, question generation, llm_client/llm_gateway, config
+│  │  ├─ scripts/                 # start.sh / start.ps1 / generate_openapi.py
+│  │  └─ tests/                   # Backend test samples
+│  └─ .env                        # Shared front/back config (gitignored — never commit secrets)
 │
-├─ ai_sdk/                       # 可编辑安装的 SDK 子项目（pip install -e ai_sdk）
-├─ deepsearch_agent/  [EXPERIMENTAL]  # 深度检索/研究 Agent 原型模块（搜索聚合、研究代理、抓取工具）
-│  ├─ research_agent.py
-│  ├─ base_search_provider.py
-│  ├─ tools_web_search.py
-│  └─ ...                        # 其他 provider 与配置
-├─ requirements.txt              # 后端依赖
+├─ deploy/                        # Deploy templates: systemd / nginx / env example
+├─ docs/deployment/               # Ubuntu + systemd deployment guide
+├─ requirements.txt               # Full dev superset (incl. experimental subprojects & test tooling)
+├─ requirements-server.in         # Backend runtime direct deps (source for `uv pip compile`)
+├─ requirements-server.txt        # Minimal pinned backend runtime lock (used in production)
+├─ ai_sdk/                        # Editable SDK subproject (pip install -e ai_sdk)
+├─ deepresearch_agent/  [EXPERIMENTAL]   # Deep-research agent prototype (independent of src/)
 ├─ README.md
 └─ LICENSE
 ```
 
-提示：WXT 构建产物默认位于 .output/ 下（按浏览器区分，如 .output/chrome-mv3）。
-+补充：仓库还包含 deepsearch_agent 原型模块，使用示例与说明见 deepsearch_agent/README.md。  
-> ⚠️ **[EXPERIMENTAL]** 本模块为早期实验原型，与 src/ 主产品完全独立、互不依赖。当前状态：
-> - 依赖免费/低额度 API（智谱、Metaso），效果有限
-> - 多 agent 调度为手写实现，未使用成熟框架
-> - 提示词中英文混杂、缺少校验逻辑
-> - 计划后续用 langchain/deepagents 等框架重写，届时本目录将被替换或移除
-> - 暂不对其功能稳定性做任何承诺
+---
 
+## 🚀 Quick start
 
-## 快速开始
+### 🧩 Backend (FastAPI)
 
-### 后端（FastAPI）最小可运行
+> Requires **Python 3.12+**.
 
-前置条件：
-- Python 3.10+
-- 可用的 SQLite、本地状态文件 实例
-
-重要默认值与注意：
-- SQLite 数据库通过环境变量配置：
-  - SQLITE_DB_PATH（默认 ./data/insight_flow.sqlite3）
-  - 首次启动会自动创建父目录和数据库表
-  - 本次不提供 MySQL 到 SQLite 的自动迁移脚本
-- 本地状态文件 连接默认 LOCAL_STATUS_STORE_DIR=./status_store（可通过环境变量覆盖）
-- 存储默认使用本地目录 ./upload_file（可通过 STORAGE_TYPE/LOCAL_STORAGE_BASE_DIR 调整）
-- 硬编码后续会调整为环境变量配置
-
-安装依赖：
 ```bash
+# 1) Virtualenv + minimal runtime deps
 python -m venv .venv
-# Windows PowerShell:
-. .venv/Scripts/Activate.ps1
-# macOS/Linux:
-# source .venv/bin/activate
+source .venv/bin/activate                 # Windows: . .venv/Scripts/Activate.ps1
+pip install -r requirements-server.txt    # full dev set: pip install -r requirements.txt
 
-pip install -r requirements.txt
-# 可选：安装子项目 SDK（可编辑方式）
-pip install -e ai_sdk
-# 注意：ai_sdk 子项目的 Python 要求为 >=3.12（见 ai_sdk/pyproject.toml），如当前环境为 3.10/3.11 请在独立虚拟环境中安装与运行
-# 或者（如使用 uv）：
-# uv pip install -r requirements.txt
-# uv pip install -e ai_sdk
+# 2) Config — create src/.env and set your LLM key
+cat > src/.env <<'EOF'
+SERVER_HOST=127.0.0.1
+SERVER_PORT=8080
+LLM_PROVIDER=siliconflow
+LLM_API_URL=https://api.siliconflow.cn/v1
+LLM_MODEL=deepseek-ai/DeepSeek-V3.2
+LLM_API_KEY=sk-your-key-here
+VITE_API_BASE_URL=http://localhost:8080
+EOF
+
+# 3) Run — convenience script (venv + .env + uvicorn) …
+bash src/server/scripts/start.sh          # Windows: .\src\server\scripts\start.ps1
+# … or directly:
+python -m uvicorn server.main:app --app-dir src --host 0.0.0.0 --port 8080
 ```
 
-启动（推荐使用 --app-dir 确保 src 在 sys.path 中）：
-```bash
-# 开发：
-python -m uvicorn server.main:app --app-dir src --host 0.0.0.0 --port 8000
+Then open **http://localhost:8080/docs** for the Swagger UI. The SQLite tables
+(`file_metadata` / `chunks` / `questions`) are created automatically on first run.
 
-# 或直接运行入口模块（同样需要保证 PythonPath 包含 src）：
-# PYTHONPATH=src python src/server/main.py  # macOS/Linux
-# $env:PYTHONPATH="src"; python src/server/main.py  # Windows PowerShell
-```
+### 🧩 Extension (WXT + Vue 3)
 
-验证：
-- 打开 http://localhost:8000/docs 可见 Swagger UI
-- 首次启动会自动创建 SQLite 表（file_metadata / chunks / questions）
-- 日志由 shared_resources/fastapi_logger 配置（查看相关 log 输出）
-
-### 前端（浏览器扩展，WXT + Vue3）
-
-前端位于 src/extension，使用 WXT 脚本（非 Vite）。常用脚本如下：
-- dev：启动开发模式（自动打开浏览器并加载扩展）
-- build：构建产物到 .output/ 下
-- zip：打包为可分发 zip
-
-步骤：
 ```bash
 cd src/extension
 npm install
-npm run dev        # 开发：WXT 会自动启动并加载扩展
-# 或构建后手动加载：
-npm run build
-# Chrome: chrome://extensions -> 开发者模式 -> 加载已解压扩展 -> 选择 .output/chrome-mv3 目录
-# Firefox（如启用 build:firefox）：about:debugging#/runtime/this-firefox -> 临时加载附加组件
+npm run dev          # WXT launches a browser with the extension loaded
+# …or build and load manually:
+npm run build        # → .output/chrome-mv3
+# Chrome → chrome://extensions → Developer mode → Load unpacked → pick .output/chrome-mv3
 ```
 
-WXT 权限与清单在 src/extension/wxt.config.ts 中维护：
-- permissions: activeTab, scripting, storage, tabs, notifications
-- host_permissions: <all_urls>, about:blank
-- CSP 对开发端口做了放开，便于调试
+Then open any article, click the **InsightFlow** toolbar icon to enter the
+immersive reader, and hit the green **➕** to generate questions.
 
+> 💡 The extension reads `VITE_API_BASE_URL` (from `src/.env`) at build time — point
+> it at your backend before building for anything other than local dev.
 
-## 接入真实后端 API（替换默认本地模拟逻辑）
+---
 
-前端 API 封装位于：
-- src/extension/entrypoints/services/apiService.ts
+## 🔌 API reference
 
-可根据需要，将其从“模拟/本地逻辑”改为请求后端：
-```ts
-// 示例（可按需调整）
-const BASE_URL = "http://localhost:8000";
-// 提示：默认代码中存在远程示例地址（如 http://39.107.59.41:18080），接入真实后端时请替换为你的本地或自有后端地址，避免跨域与安全风险
+<div align="center"><b>📂 Files</b></div>
 
-export async function uploadMarkdown(userId: string, file: File) {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch(`${BASE_URL}/upload/${encodeURIComponent(userId)}`, {
-    method: "POST",
-    body: form,
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/upload/{user_id}` | Upload a file (multipart) → `{ file_id, status, … }` |
+| `GET` | `/files/` | All file metadata |
+| `GET` | `/files/{user_id}` | A user's files (`skip`, `limit`) |
+| `GET` | `/files/{user_id}/{file_id}` | One file's metadata |
+| `GET` | `/download/{user_id}/{file_id}` | Download the stored file |
+| `DELETE` | `/delete/{user_id}/{file_id}` | Delete a file + cascade its chunks/questions |
+| `GET` | `/file_status/{file_id}` | `Pending` / `Processing` / `Completed` / `Failed` |
 
-export async function triggerGenerate(userId: string, fileId: string) {
-  const res = await fetch(`${BASE_URL}/questions/generate/${encodeURIComponent(userId)}/${encodeURIComponent(fileId)}`, { method: "POST" });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
+<div align="center"><b>❓ Questions &nbsp;·&nbsp; 🤖 LLM &nbsp;·&nbsp; 🩺 Ops</b></div>
 
-export async function getFileStatus(fileId: string) {
-  const res = await fetch(`${BASE_URL}/file_status/${encodeURIComponent(fileId)}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json(); // { file_id, status }
-}
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/questions/generate/{user_id}/{file_id}` | Kick off background question generation |
+| `GET` | `/questions/{file_id}` | Generated questions (once status = `Completed`) |
+| `POST` | `/llm/query` | One‑shot answer (OpenAI‑format JSON) |
+| `POST` | `/llm/query/stream` | Streaming answer (`text/event-stream`) |
+| `GET` | `/healthz` | Health check |
+| `GET` | `/docs` · `/openapi.json` | Swagger UI / OpenAPI schema |
 
-export async function getQuestions(fileId: string) {
-  const res = await fetch(`${BASE_URL}/questions/${encodeURIComponent(fileId)}`);
-  if (!res.ok) throw new Error(await res.text());
-  return res.json(); // { file_id, questions: [...] }
-}
-```
+<details>
+<summary><b>📋 cURL walkthrough</b></summary>
 
-前端联动流程参考：
-1) 选择/拖拽上传 Markdown（uploadMarkdown）
-2) 返回 file_id 后，手动触发生成（triggerGenerate）
-3) 轮询 file_status 为 Completed（getFileStatus）
-4) 获取问题列表（getQuestions）并展示
-
-
-## 架构与数据流
-
-原理（简述）：
-- 前端（WXT 扩展）：内容脚本提取页面主体，提供沉浸式阅读，并在侧栏展示问题/回答。默认可使用本地/模拟问题/回答以便独立演示。
-- 后端：接收 Markdown，保存到存储，记录元数据到 SQLite，通过后台任务调用 LLM 按分块生成问题，入库并使用 本地状态文件 记录处理进度，供前端轮询。
-
-架构图：
-```mermaid
-flowchart TD
-  subgraph Browser_Extension [Browser Extension - WXT]
-    A[Content/Popup UI] --> B[Sidebar/Services]
-  end
-  B -->|上传/触发/查询| D[FastAPI API]
-  A -->|通知/交互| B
-
-  D -->|异步任务| E[KnowledgeProcessingService]
-  E --> F[LLM Provider]
-  E --> G[(SQLite)]
-  E --> H[(本地状态文件 状态)]
-  E --> I[(本地/OSS 存储)]
-
-  H -->|状态轮询| B
-  G -->|问题结果| B
-
-  classDef dark fill:#0b3d91,stroke:#f5f5f5,color:#ffffff;
-  class A,B,D,E,F,G,H,I dark;
-```
-
-处理流水线时序：
-```mermaid
-sequenceDiagram
-  participant FE as Extension UI/Service
-  participant API as FastAPI
-  participant KPS as KnowledgeProcessingService
-  participant R as 本地状态文件
-  participant DB as SQLite
-  participant ST as Storage
-  participant LLM as LLM
-
-  FE->>API: POST /upload/{user_id} (multipart file)
-  API->>ST: 保存原文件
-  API->>DB: 保存元数据
-  API->>R: set status=Pending
-  FE->>API: POST /questions/generate/{user_id}/{file_id}
-  API->>KPS: 启动后台任务
-  KPS->>ST: 读取文件
-  KPS->>KPS: Markdown 分块
-  KPS->>LLM: 为每个分块生成问题
-  KPS->>DB: 保存 chunks & questions
-  KPS->>R: set status=Completed
-  FE->>API: GET /file_status/{file_id}
-  API-->>FE: {status: Completed}
-  FE->>API: GET /questions/{file_id}
-  API-->>FE: {questions: [...]}
-```
-
-
-## API 一览（后端实际实现）
-
-- POST /upload/{user_id}
-  - form-data: file (UploadFile)
-  - 返回: { file_id, filename, size, type, upload_time, stored_filename, status }
-- GET /files/
-  - 返回: FileMetadataResponse[]
-- GET /files/{user_id}
-  - query: skip, limit
-  - 返回: FileMetadataResponse[]
-- GET /files/{user_id}/{file_id}
-  - 返回: FileMetadataResponse
-- DELETE /delete/{user_id}/{file_id}
-  - 返回: { message }
-- GET /file_status/{file_id}
-  - 返回: { file_id, status }
-- GET /download/{user_id}/{file_id}
-  - 返回: 文件流（Content-Disposition 附件）
-- POST /questions/generate/{user_id}/{file_id}
-  - 返回: { message }
-- GET /questions/{file_id}
-  - 前置：本地状态文件 中状态需为 Completed
-  - 返回: { file_id, questions: [{question_id,question,label,chunk_id}, ...] }
-- POST /llm/query
-  - body: { question_id, chunk_id }
-  - 返回: 上游 OpenAI 格式 JSON
-- POST /llm/query/stream
-  - body: { question_id, chunk_id }
-  - 返回: text/event-stream（OpenAI chunk 兼容）
-
-示例（cURL）：
 ```bash
-# 上传文件
-curl -F "file=@./README.md" http://localhost:8000/upload/demo_user
-
-# 触发生成
-curl -X POST http://localhost:8000/questions/generate/demo_user/<file_id>
-
-# 查询状态
-curl http://localhost:8000/file_status/<file_id>
-
-# 获取问题
-curl http://localhost:8000/questions/<file_id>
-
-# 删除文件及其数据
-curl -X DELETE http://localhost:8000/delete/demo_user/<file_id>
+# Upload
+curl -F "file=@./README.md" http://localhost:8080/upload/demo_user
+# Trigger generation
+curl -X POST http://localhost:8080/questions/generate/demo_user/<file_id>
+# Poll status
+curl http://localhost:8080/file_status/<file_id>
+# Fetch questions (after status = Completed)
+curl http://localhost:8080/questions/<file_id>
+# Delete file + data
+curl -X DELETE http://localhost:8080/delete/demo_user/<file_id>
 ```
 
+</details>
 
-## 配置与环境变量
+---
 
-后端主要配置项：
-- SQLite
-  - SQLITE_DB_PATH（默认 ./data/insight_flow.sqlite3）
-  - 首次启动会自动创建 file_metadata / chunks / questions 三张表
-  - 不自动迁移历史 MySQL 数据
-- 本地状态文件
-  - LOCAL_STATUS_STORE_DIR（默认 ./status_store）
-  - 状态 TTL 由代码控制（set_file_status 默认 7 天）
-- 存储
-  - STORAGE_TYPE：local 或 oss（默认 local）
-  - LOCAL_STORAGE_BASE_DIR：本地存储根目录（默认 ./upload_file）
-  - 若使用 OSS：
-    - OSS_ACCESS_KEY_ID
-    - OSS_ACCESS_KEY_SECRET
-    - OSS_ENDPOINT（默认 http://oss-cn-hangzhou.aliyuncs.com）
-    - OSS_BUCKET_NAME
-- LLM 提供商与模型（在代码/环境变量中配置）
-  - 参考 src/server/llm_knowledge_processing/llm_config_manager.py 与 config_manager.py
-  - 示例环境：
-    - LLM_API_URL（默认 https://api.siliconflow.cn/v1/）
-    - LLM_API_KEY（需自行提供，切勿硬编码到仓库或日志，建议使用环境变量/Secret 管理）
-    - LLM_MODEL、LLM_TEMPERATURE、OPENAI_MAX_TOKENS 等
+## ⚙️ Configuration
 
-前端（WXT）清单/权限：
-- 位于 src/extension/wxt.config.ts 的 manifest 块
-- 默认 permissions: notifications, activeTab, scripting, storage, tabs
-- host_permissions: ["<all_urls>", "about:blank"]
-- 扩展页面 CSP 已放开本地开发端口脚本加载限制
+All backend config is read from environment variables (loaded from `src/.env` in
+dev, or `/etc/insightflow/backend.env` in production).
 
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `SERVER_HOST` / `SERVER_PORT` | `127.0.0.1` / `8080` | Bind address |
+| `SQLITE_DB_PATH` | `./data/insight_flow.sqlite3` | SQLite file (parent dir auto‑created) |
+| `LOCAL_STATUS_STORE_DIR` | `./status_store` | JSON status store directory |
+| `LOCAL_STORAGE_BASE_DIR` | `./upload_file` | Uploaded files directory |
+| `LOCAL_COMPLETED_DIR` | `./completed` | Processed‑file archive directory |
+| `STORAGE_TYPE` | `local` | `local` or `oss` |
+| `OSS_ACCESS_KEY_ID` / `_SECRET` / `_ENDPOINT` / `_BUCKET_NAME` | — | Alibaba OSS (when `STORAGE_TYPE=oss`) |
+| `LLM_PROVIDER` | `siliconflow` | `siliconflow` · `openai` · `zhipu` · `ollama` |
+| `LLM_API_URL` | `https://api.siliconflow.cn/v1` | Provider base URL |
+| `LLM_API_KEY` | — | Provider key — **never commit** |
+| `LLM_MODEL` | `deepseek-ai/DeepSeek-V3.2` | Model id |
+| `LLM_TEMPERATURE` | `0.7` | Sampling temperature |
+| `INSIGHTFLOW_LOG_LEVEL` / `_DIR` / `_CONSOLE` | `INFO` / `…/logs` / `0` | Logging |
+| `INSIGHTFLOW_MAX_CONCURRENT_TASKS` | `10` | Max concurrent processing tasks |
 
-## 开发与调试
+> 🔐 CORS allows `*` for `GET`/`POST` (`allow_credentials=false`) so the extension
+> can call the API from any page.
 
-后端：
+---
+
+## 📦 Deployment
+
+Production runs as a **single Ubuntu host**: pyenv + uv, a hardened **systemd**
+service, and **Nginx + HTTPS** (Let's Encrypt). App data lives under
+`/var/lib/insightflow`, logs under `/var/log/insightflow`.
+
 ```bash
-# 安装依赖
-pip install -r requirements.txt
-
-# 启动服务（开发）
-python -m uvicorn server.main:app --app-dir src --host 0.0.0.0 --port 8000
-
-# 查看交互文档
-open http://localhost:8000/docs   # macOS
-# Windows: start http://localhost:8000/docs
+# On the server — install only the minimal runtime lock
+uv pip sync requirements-server.txt
 ```
 
-前端（WXT）：
+📘 **Full runbook:** [`docs/deployment/backend-ubuntu-systemd.md`](docs/deployment/backend-ubuntu-systemd.md)
+🧱 **Templates:** [`deploy/systemd`](deploy/systemd) · [`deploy/nginx`](deploy/nginx) · [`deploy/env`](deploy/env)
+
+> ⚠️ Keep **one Uvicorn worker** for now — the status store and background task
+> tracking live in process memory; multiple workers would race. The Nginx
+> template already disables buffering for `/llm/query/stream` so SSE flows
+> through unbuffered.
+
+---
+
+## 🧪 Testing
+
 ```bash
-cd src/extension
-npm install
-npm run dev
-# 或构建后在 Chrome 加载 .output/chrome-mv3 目录
+pip install pytest pytest-asyncio
+PYTHONPATH=src python -m pytest tests -q
 ```
 
-调试建议：
-- 后端日志：shared_resources/fastapi_logger 输出；必要时提高日志级别
-- 本地状态文件：使用 CLI 观察 file_id 对应状态键
-- SQLite：检查 file_metadata / chunks / questions 三张表
-- CORS：后端已允许 *（GET/POST，allow_credentials=False）
-- Python 导入：使用 uvicorn --app-dir src 或设置 PYTHONPATH=src，避免 server.* 导入失败
+<details>
+<summary><b>🎯 End‑to‑end scenarios</b></summary>
 
+| # | Action | Expected |
+| :-: | :--- | :--- |
+| 1 | Upload the same file twice | 2nd returns `status=File Already exists`, same `file_id` |
+| 2 | Status right after upload | `Pending` or `Processing` |
+| 3 | Generate, then poll every 2s | Eventually `Completed` |
+| 4 | Fetch questions once complete | `questions[]` with length ≥ 1 |
+| 5 | List a user's files | Metadata array with full fields |
+| 6 | List all files | Global metadata array |
+| 7 | Download a file | `200` + `Content-Disposition`, body > 0 |
+| 8 | Delete a file | `deleted successfully`; chunks/questions/status cascade‑cleaned |
+| 9 | Extension dev mode (E2E) | Status changes visible, question list non‑empty |
+| 10 | Extension against real backend | Sidebar shows backend questions; status matches |
 
-## 常见问题（Troubleshooting）
+</details>
 
-- ImportError: No module named 'server.api_services...'
-  - 使用 uvicorn --app-dir src 或设置 PYTHONPATH=src 再启动
-- /questions/{file_id} 返回 500 或空
-  - 需等 /file_status/{file_id} 为 Completed 后再请求
-  - 确认数据库中 chunks 与 questions 已生成
-- SQLite 初始化失败
-  - 通过 SQLITE_DB_PATH 指向可写路径，或检查 ./data 目录权限
-- 本地状态文件 连接失败
-  - 通过 LOCAL_STATUS_STORE_DIR 环境变量指向可写目录
-- 本地存储无权限/路径不存在
-  - 调整 LOCAL_STORAGE_BASE_DIR 或确保进程有写权限
-- 浏览器扩展加载异常（资源/脚本找不到）
-  - WXT 模式下无需手工复制静态资源；使用 npm run dev 或从 .output/ 目录加载
-- 生产部署
-  - 建议：Nginx 反向代理 + 多 worker（uvicorn/gunicorn）+ 进程守护（systemd/supervisor）
-  - 如使用 gunicorn：需自行加入依赖（requirements 未固定），并使用 -k uvicorn.workers.UvicornWorker
+---
 
+## 🛠️ Troubleshooting
 
-## 10 组测试用例（含预期结果）
+| Symptom | Fix |
+| :--- | :--- |
+| `No module named 'server…'` | Start with `uvicorn --app-dir src` or set `PYTHONPATH=src` |
+| `/questions/{file_id}` returns 500/empty | Wait until `/file_status` is `Completed` |
+| SQLite init fails | Point `SQLITE_DB_PATH` at a writable path / check `./data` perms |
+| Status / storage write errors | Set `LOCAL_STATUS_STORE_DIR` · `LOCAL_STORAGE_BASE_DIR` · `LOCAL_COMPLETED_DIR` to writable dirs |
+| Extension assets not found | Use `npm run dev`, or load from `.output/chrome-mv3` |
 
-1. 上传同一用户的同名文件两次
-   - 操作：POST /upload/{user} 两次，文件相同
-   - 预期：第二次返回 status=File Already exists，file_id 与第一次一致
+---
 
-2. 上传后立即获取状态
-   - 操作：POST /upload → GET /file_status/{file_id}
-   - 预期：status=Pending 或 Processing
+## 🤝 Contributing
 
-3. 触发生成任务并轮询至完成
-   - 操作：POST /questions/generate → 间隔 2s GET /file_status
-   - 预期：最终 status=Completed
+- Issues and PRs welcome.
+- Run the backend tests (`pytest`) and keep docs in sync before changing behavior.
+- Favor small, focused changes and clear, simple code.
 
-4. 生成完成后获取问题
-   - 操作：GET /questions/{file_id}
-   - 预期：返回 {file_id, questions:[{question_id,question,label,chunk_id}...]}，长度≥1
+## 📜 License
 
-5. 获取指定用户的文件清单
-   - 操作：GET /files/{user_id}?skip=0&limit=50
-   - 预期：返回该用户上传过的文件元数据数组，字段齐全
+Released under the **ISC License** — see [LICENSE](LICENSE).
 
-6. 获取所有文件清单（全局）
-   - 操作：GET /files/
-   - 预期：返回所有文件的元数据数组
-
-7. 下载文件
-   - 操作：GET /download/{user}/{file_id}
-   - 预期：响应 200，包含附件头 Content-Disposition，流长度>0
-
-8. 删除文件及数据
-   - 操作：DELETE /delete/{user}/{file_id}
-   - 预期：返回 message=File ... deleted successfully；数据库中对应 chunks/questions 级联清理；本地状态文件 状态删除
-
-9. 前端 WXT 开发模式验证
-   - 操作：src/extension 运行 npm run dev，打开扩展 UI，进行上传/触发/轮询/获取问题的端到端流程（后端需先启动）
-   - 预期：UI 可见状态变化，问题列表非空
-
-10. 前端接入真实后端（修改 apiService.ts）
-   - 操作：将 BASE_URL 指向后端；上传→触发→轮询→展示问题
-   - 预期：侧边栏/弹窗展示来自后端 DB 的问题数据，状态变化与后端一致
-
-
-## 贡献
-
-- 欢迎提交 Issue / PR
-- 变更前请先运行基本测试（后端 pytest），并更新相关文档
-- 代码风格保持简单清晰，优先最小必要修改
-
-
-## 许可证
-
-本项目使用 ISC 许可证，详见 [LICENSE](LICENSE)
-
-
-## 变更记录（相对旧版 README 的主要修订）
-
-- 将前端构建说明从 Vite/cpx 更正为 WXT（src/extension 下的 wxt.config.ts 与 npm scripts）
-- 修正后端启动命令，推荐 uvicorn --app-dir src 以保证 server.* 导入
-- 明确 SQLite/本地状态文件 默认路径与环境变量覆盖范围
-- 补充 LLM 同步/流式查询接口说明
-- 更新目录结构、架构与时序 mermaid 图、故障排查与测试用例
+<div align="center"><sub>Built for deeper reading. Powered by FastAPI · Vue 3 · WXT.</sub></div>

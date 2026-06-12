@@ -27,6 +27,7 @@ sudo install -d -o insightflow -g insightflow /opt/insightflow
 sudo install -d -o insightflow -g insightflow /var/lib/insightflow/data
 sudo install -d -o insightflow -g insightflow /var/lib/insightflow/status_store
 sudo install -d -o insightflow -g insightflow /var/lib/insightflow/upload_file
+sudo install -d -o insightflow -g insightflow /var/lib/insightflow/completed
 sudo install -d -o insightflow -g insightflow /var/log/insightflow
 sudo install -d -o root -g insightflow -m 0750 /etc/insightflow
 ```
@@ -52,8 +53,24 @@ Deploy code to `/opt/insightflow/current`, then install dependencies:
 sudo -iu insightflow
 cd /opt/insightflow/current
 uv venv .venv --python /opt/insightflow/.pyenv/shims/python
-uv pip sync requirements.txt
+uv pip sync requirements-server.txt
 uv pip check
+# Offline import / dependency smoke test (no DB or network needed):
+PYTHONPATH=src INSIGHTFLOW_LOG_DIR=/var/log/insightflow .venv/bin/python -c "import server.main"
+exit
+```
+
+`requirements-server.txt` is the minimal backend runtime lock (compiled from
+`requirements-server.in`). The repo-root `requirements.txt` is the full
+dev/experimental superset and is not needed on the server.
+
+The runtime lock intentionally excludes test tooling. To run the offline unit
+tests, install pytest separately:
+
+```bash
+sudo -iu insightflow
+cd /opt/insightflow/current
+uv pip install pytest pytest-asyncio
 PYTHONPATH=src .venv/bin/python -m pytest tests -q
 exit
 ```
@@ -106,5 +123,6 @@ journalctl -u insightflow-backend -n 100
 sqlite3 /var/lib/insightflow/data/insight_flow.sqlite3 ".backup '/backup/path/insight_flow.sqlite3'"
 ```
 
-Back up SQLite, status store, and uploaded files daily. Keep one Uvicorn worker
-until status storage and background task tracking move out of process memory.
+Back up SQLite, the status store, uploaded files, and the completed archive
+daily. Keep one Uvicorn worker until status storage and background task tracking
+move out of process memory.

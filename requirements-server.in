@@ -1,0 +1,44 @@
+# InsightFlow backend — direct runtime dependencies (source of truth).
+#
+# This is the minimal set the FastAPI service actually imports at runtime.
+# Compile it into a fully-pinned lock with uv (run on / for the deploy target):
+#
+#     uv pip compile --universal --python-version 3.12 \
+#         requirements-server.in -o requirements-server.txt
+#
+# Then install the lock with `uv pip sync requirements-server.txt`.
+# The repo-root requirements.txt remains the full dev/experimental superset
+# (jupyter, akshare/tushare, deepresearch, test tooling); the backend service
+# does not need any of it.
+#
+# Versions are pinned to the currently known-good set from requirements.txt.
+
+# Web framework + ASGI server
+fastapi==0.116.1
+uvicorn==0.35.0
+python-multipart==0.0.20        # required by FastAPI for UploadFile / multipart form parsing
+pydantic==2.11.7
+
+# Config
+python-dotenv==1.1.1
+
+# Persistence (SQLAlchemy async + SQLite driver)
+SQLAlchemy==2.0.41
+aiosqlite==0.21.0               # async SQLite driver used via the sqlite+aiosqlite URL
+
+# Local file storage
+aiofiles==24.1.0
+
+# Default LLM provider (siliconflow / OpenAI-compatible, and the streaming gateway)
+openai==1.93.0
+
+# Object storage backend. Imported at startup unconditionally
+# (server.api_services.shared_resources -> oss_storage), so required even when
+# STORAGE_TYPE=local. Only actually used when STORAGE_TYPE=oss.
+oss2==2.19.1
+
+# --- Optional alternative LLM providers --------------------------------------
+# Only needed if you set LLM_PROVIDER to one of these (lazy-imported in
+# server/llm_knowledge_processing/llm_client.py). Uncomment as needed.
+# ollama==0.5.1
+# zhipuai==2.1.5.20250701
