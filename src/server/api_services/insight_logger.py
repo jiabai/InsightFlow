@@ -115,8 +115,9 @@ def setup_logging(
     formatter = InsightFlowFormatter(DEFAULT_LOG_FORMAT)
 
     # File handler
-    log_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", "logs"
+    log_dir = os.getenv(
+        "INSIGHTFLOW_LOG_DIR",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs"),
     )
     os.makedirs(log_dir, exist_ok=True)
     full_path = os.path.join(log_dir, log_file)

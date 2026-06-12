@@ -85,3 +85,18 @@ class TestInsightMemoryRepository:
             assert len(bob_files) == 1
             assert alice_files[0].file_id == "f1"
             assert bob_files[0].file_id == "f2"
+
+    async def test_question_without_label_uses_empty_label(self, memory_repo):
+        """Questions without labels should not expose internal fallback text."""
+        async with memory_repo.get_db() as db:
+            await memory_repo.save_questions(
+                db,
+                user_id="user1",
+                file_id="file-1",
+                questions=[{"question": "What if no label is available?"}],
+                chunk_id=1,
+            )
+
+            questions = await memory_repo.get_questions_by_chunk_id(db, 1)
+
+            assert questions[0].label == ""

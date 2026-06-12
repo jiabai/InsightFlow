@@ -681,6 +681,7 @@ async function processAfterUpload(
       });
       throw new Error(`生成问题失败: ${generateResponse.status} ${errorText}`);
     }
+    await releaseResponseBody(generateResponse);
 
     // 轮询获取结果
     return new Promise<QuestionResponse>((resolve, reject) => {
@@ -754,14 +755,44 @@ async function processAfterUpload(
 }
 
 // 首先，将fetchWithTimeout提取为独立函数
-const fetchWithTimeout = (url: string, options: RequestInit, timeout = 30000) => {
-  return Promise.race([
-    fetch(url, options),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('请求超时')), timeout)
-    )
-  ]);
+const fetchWithTimeout = async (url: string, options: RequestInit, timeout = 30000): Promise<Response> => {
+  const controller = new AbortController();
+  let didTimeout = false;
+  const timeoutId = setTimeout(() => {
+    didTimeout = true;
+    controller.abort();
+  }, timeout);
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (didTimeout) {
+      throw new Error('请求超时');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
+
+async function releaseResponseBody(response: Response): Promise<void> {
+  if (response.bodyUsed) return;
+
+  try {
+    await response.arrayBuffer();
+  } catch {
+    try {
+      if (response.body) {
+        await response.body.cancel();
+      }
+    } catch {
+      // Best-effort cleanup only; the request itself has already completed.
+    }
+  }
+}
 
 
 /**

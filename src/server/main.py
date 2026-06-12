@@ -42,6 +42,13 @@ app.include_router(file_router)
 app.include_router(question_router)
 app.include_router(llm_router)
 
+
+@app.get("/healthz", include_in_schema=False)
+async def healthz():
+    """Lightweight health check for systemd, Nginx, and deployment smoke tests."""
+    return {"status": "ok"}
+
+
 if __name__ == "__main__":
     host = os.getenv("SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("SERVER_PORT", "8000"))

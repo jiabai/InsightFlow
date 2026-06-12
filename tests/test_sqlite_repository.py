@@ -77,7 +77,18 @@ async def test_sqlite_repository_creates_database_and_persists_core_entities(
                 "What is the body?",
             ]
 
+            await repo.save_questions(
+                db,
+                user_id="user-1",
+                file_id=file_id,
+                questions=[{"question": "What if no label is available?"}],
+                chunk_id=chunks[1].id,
+            )
+            unlabeled_questions = await repo.get_questions_by_chunk_id(db, chunks[1].id)
+            assert unlabeled_questions[0].label == ""
+
             assert await repo.delete_questions_by_chunk_id(db, chunks[0].id) == 2
+            assert await repo.delete_questions_by_chunk_id(db, chunks[1].id) == 1
             assert await repo.delete_chunks_by_file_id(db, file_id) == 2
             assert await repo.delete_file_metadata(db, file_id) == 1
     finally:
