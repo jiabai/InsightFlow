@@ -5,8 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=insightflow
-Group=insightflow
+User=ubuntu
+Group=ubuntu
 WorkingDirectory=%h/InsightFlow
 EnvironmentFile=%h/InsightFlow/backend.env
 Environment=PYTHONPATH=%h/InsightFlow/src

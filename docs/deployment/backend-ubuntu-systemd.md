@@ -5,7 +5,7 @@ systemd, Nginx, and HTTPS.
 
 ## Runtime Layout
 
-- Service user: `insightflow`
+- Service user: `ubuntu`
 - Code: `~/InsightFlow`
 - Virtualenv: `~/InsightFlow/.venv`
 - Environment file: `~/InsightFlow/backend.env`
@@ -22,16 +22,13 @@ sudo apt install -y git curl build-essential nginx certbot python3-certbot-nginx
   libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev wget llvm \
   libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
 
-sudo useradd --system --create-home --shell /bin/bash insightflow
-sudo -iu insightflow
+# Create runtime directories under the ubuntu user's home
 mkdir -p ~/InsightFlow/data ~/InsightFlow/status_store ~/InsightFlow/upload_file ~/InsightFlow/completed ~/InsightFlow/logs
-exit
 ```
 
 ## Install Python and Dependencies
 
 ```bash
-sudo -iu insightflow
 curl https://pyenv.run | bash
 export PYENV_ROOT=~/.pyenv
 export PATH="$PYENV_ROOT/bin:$PATH"
@@ -40,20 +37,17 @@ PYTHON_VERSION="$(pyenv install --list | sed 's/^  //' | grep -E '^3\.14\.[0-9]+
 pyenv install "$PYTHON_VERSION"
 pyenv global "$PYTHON_VERSION"
 curl -LsSf https://astral.sh/uv/install.sh | sh
-exit
 ```
 
 Deploy code to `~/InsightFlow`, then install dependencies:
 
 ```bash
-sudo -iu insightflow
 cd ~/InsightFlow
 uv venv .venv --python ~/.pyenv/shims/python
 uv pip sync requirements-server.txt
 uv pip check
 # Offline import / dependency smoke test (no DB or network needed):
 PYTHONPATH=src INSIGHTFLOW_LOG_DIR=~/InsightFlow/logs .venv/bin/python -c "import server.main"
-exit
 ```
 
 `requirements-server.txt` is the minimal backend runtime lock (compiled from
@@ -64,11 +58,9 @@ The runtime lock intentionally excludes test tooling. To run the offline unit
 tests, install pytest separately:
 
 ```bash
-sudo -iu insightflow
 cd ~/InsightFlow
 uv pip install pytest pytest-asyncio
 PYTHONPATH=src .venv/bin/python -m pytest tests -q
-exit
 ```
 
 ## Configure Backend

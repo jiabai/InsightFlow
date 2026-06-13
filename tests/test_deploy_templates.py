@@ -4,8 +4,8 @@ from pathlib import Path
 def test_systemd_unit_matches_backend_deployment_contract():
     unit = Path("deploy/systemd/insightflow-backend.service").read_text(encoding="utf-8")
 
-    assert "User=insightflow" in unit
-    assert "Group=insightflow" in unit
+    assert "User=ubuntu" in unit
+    assert "Group=ubuntu" in unit
     assert "WorkingDirectory=%h/InsightFlow" in unit
     assert "EnvironmentFile=%h/InsightFlow/backend.env" in unit
     assert "--host 127.0.0.1" in unit
