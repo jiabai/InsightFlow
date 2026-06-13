@@ -769,6 +769,7 @@ function startReadingSession(siteRules = null) {
         user-select: none !important;
       }
       #question-sidebar .question-card {
+        position: relative !important;
         margin: 10px 0 !important;
         padding: 12px 14px !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -777,12 +778,56 @@ function startReadingSession(siteRules = null) {
         color: #eeeeee !important;
         font-size: 16px !important;
         line-height: 1.45 !important;
-        cursor: text !important;
-        user-select: text !important;
+        cursor: pointer !important;
+        user-select: none !important;
+        transition: border-color 0.15s ease, background 0.15s ease, transform 0.05s ease !important;
       }
       #question-sidebar .question-card * {
-        cursor: text !important;
-        user-select: text !important;
+        cursor: pointer !important;
+        user-select: none !important;
+        pointer-events: none !important;
+      }
+      #question-sidebar .question-card:hover {
+        border-color: rgba(67, 191, 79, 0.6) !important;
+        background: #161616 !important;
+      }
+      #question-sidebar .question-card:active {
+        transform: scale(0.99) !important;
+      }
+      #question-sidebar .question-card:focus-visible {
+        outline: 2px solid #43bf4f !important;
+        outline-offset: 2px !important;
+      }
+      #question-sidebar .question-card.is-copied {
+        border-color: #43bf4f !important;
+        background: rgba(67, 191, 79, 0.12) !important;
+      }
+      #question-sidebar .question-card.is-copy-failed {
+        border-color: #a52326 !important;
+        background: rgba(165, 35, 38, 0.14) !important;
+      }
+      #question-sidebar .question-card.is-copied::after,
+      #question-sidebar .question-card.is-copy-failed::after {
+        content: attr(data-copy-feedback) !important;
+        position: absolute !important;
+        top: 8px !important;
+        right: 10px !important;
+        padding: 2px 8px !important;
+        border-radius: 999px !important;
+        background: #050505 !important;
+        color: #ffffff !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        line-height: 1.5 !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+      }
+      #question-sidebar .question-card.is-copied::after {
+        color: #8ff0a0 !important;
+      }
+      #question-sidebar .question-card.is-copy-failed::after {
+        color: #ff9ea0 !important;
       }
       @media (max-width: 900px) {
         #insight-flow-header {
@@ -1359,7 +1404,89 @@ function startReadingSession(siteRules = null) {
       const card = document.createElement('div');
       card.className = 'question-card';
       card.textContent = formatQuestionCardText(item);
+      setupQuestionCardCopy(card, item);
       sidebar.append(card);
+    }
+  }
+
+  function setupQuestionCardCopy(card, item) {
+    // Copy only the question itself, never the category-label prefix the card may show.
+    const copyText = String(item?.question || '').trim() || (card.textContent || '').trim();
+
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.title = messages.copyQuestion;
+
+    let resetTimer = null;
+
+    const showFeedback = (ok) => {
+      card.classList.remove('is-copied', 'is-copy-failed');
+      card.classList.add(ok ? 'is-copied' : 'is-copy-failed');
+      card.setAttribute('data-copy-feedback', ok ? messages.questionCopied : messages.questionCopyFailed);
+
+      if (resetTimer) clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => {
+        card.classList.remove('is-copied', 'is-copy-failed');
+        card.removeAttribute('data-copy-feedback');
+        resetTimer = null;
+      }, 1200);
+    };
+
+    const onCopy = () => {
+      if (!copyText) return;
+      copyTextToClipboard(copyText).then(showFeedback).catch(() => showFeedback(false));
+    };
+
+    card.addEventListener('click', onCopy);
+    card.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        onCopy();
+      }
+    });
+  }
+
+  function copyTextToClipboard(text) {
+    const value = String(text || '');
+    if (!value) return Promise.resolve(false);
+
+    const nav = window.navigator || globalThis.navigator;
+    if (nav && nav.clipboard && typeof nav.clipboard.writeText === 'function' && window.isSecureContext) {
+      return nav.clipboard
+        .writeText(value)
+        .then(() => true)
+        .catch(() => copyTextWithFallback(value));
+    }
+
+    return Promise.resolve(copyTextWithFallback(value));
+  }
+
+  function copyTextWithFallback(value) {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = value;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.top = '0';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+
+      const selection = document.getSelection();
+      const previousRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand('copy');
+      textarea.remove();
+
+      if (previousRange && selection) {
+        selection.removeAllRanges();
+        selection.addRange(previousRange);
+      }
+
+      return ok;
+    } catch {
+      return false;
     }
   }
 
@@ -1404,6 +1531,9 @@ function startReadingSession(siteRules = null) {
       generateQuestions: getI18nMessage('generateQuestionsTooltip', 'Generate Questions'),
       exitReadingMode: getI18nMessage('exitReadingModeTooltip', 'Exit Reading Mode'),
       questions: getI18nMessage('questionsLabel', 'Questions'),
+      copyQuestion: getI18nMessage('copyQuestionTooltip', 'Click to copy'),
+      questionCopied: getI18nMessage('questionCopied', 'Copied'),
+      questionCopyFailed: getI18nMessage('questionCopyFailed', 'Copy failed'),
       noQuestionsGenerated: getI18nMessage('noQuestionsGenerated', 'No questions generated'),
       generatingQuestions: getI18nMessage('generatingQuestions', 'Generating questions...'),
       failedToGenerateQuestions: getI18nMessage('failedToGenerateQuestions', 'Failed to generate questions'),

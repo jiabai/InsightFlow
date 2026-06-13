@@ -45,5 +45,14 @@
   },
   "pageContentTooShort": {
     "message": "El contenido de la página tiene menos de $1 caracteres"
+  },
+  "copyQuestionTooltip": {
+    "message": "Clic para copiar"
+  },
+  "questionCopied": {
+    "message": "Copiado"
+  },
+  "questionCopyFailed": {
+    "message": "Error al copiar"
   }
 }

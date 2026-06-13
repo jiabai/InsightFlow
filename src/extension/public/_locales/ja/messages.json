@@ -45,5 +45,14 @@
   },
   "pageContentTooShort": {
     "message": "ページ内容が $1 文字未満です"
+  },
+  "copyQuestionTooltip": {
+    "message": "クリックでコピー"
+  },
+  "questionCopied": {
+    "message": "コピーしました"
+  },
+  "questionCopyFailed": {
+    "message": "コピーに失敗しました"
   }
 }

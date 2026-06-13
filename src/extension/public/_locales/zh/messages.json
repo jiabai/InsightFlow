@@ -45,5 +45,14 @@
   },
   "pageContentTooShort": {
     "message": "页面内容少于 $1 个字符"
+  },
+  "copyQuestionTooltip": {
+    "message": "点击复制"
+  },
+  "questionCopied": {
+    "message": "已复制"
+  },
+  "questionCopyFailed": {
+    "message": "复制失败"
   }
 }
