@@ -23,7 +23,7 @@ function startReadingSession(siteRules = null, options = {}) {
       };
     }
 
-    if (requireArticleLike && !isArticleLike()) {
+    if (requireArticleLike && !isArticleLike(extracted)) {
       return {
         ok: false,
         error: 'not-article-like',
@@ -82,12 +82,17 @@ function startReadingSession(siteRules = null, options = {}) {
     return buildExtractedContent(body, 'fallback', siteRule);
   }
 
-  function isArticleLike() {
+  function isArticleLike(extracted) {
     const pageUrl = document.baseURI || document.URL || readingWindow.location?.href || '';
     const siteRule = getWebsiteConfig(pageUrl, activeSiteRules);
     const hasContentRule = Boolean(siteRule && siteRule.contentElem);
     const hasArticleStructure = Boolean(document.querySelector('article, main, [role="main"]'));
-    return hasContentRule || hasArticleStructure;
+    // 抽取时命中了正文选择器或站点规则，也视为「正文页」（method: 'selector' / 'site-rule*'），
+    // 这样像 news.qq.com 这种无语义标签、但正文在 .rich_media_content 等已知容器里的页面也能自动进入。
+    const method = extracted && extracted.method;
+    const matchedContentSelector =
+      method === 'selector' || (typeof method === 'string' && method.startsWith('site-rule'));
+    return hasContentRule || hasArticleStructure || matchedContentSelector;
   }
 
   function extractBySiteRule(doc, siteRule) {

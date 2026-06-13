@@ -80,7 +80,8 @@
   - `const requireArticleLike = opts.requireArticleLike === true;`
 - 当 `requireArticleLike`（仅 `auto` 传 `true`）时，在抽取完成后判定「是否更像正文」，不达标则**静默**返回 `{ ok: false, reason: 'not-article-like' }`，**不渲染**：
   - `hasContentRule = Boolean(getWebsiteConfig(url, rules)?.contentElem)`（命中 SITE_RULES 实质内容规则），**或**
-  - `hasArticleStructure = Boolean(document.querySelector('article, main, [role="main"]'))`，
+  - `hasArticleStructure = Boolean(document.querySelector('article, main, [role="main"]'))`，**或**
+  - `matchedContentSelector`：抽取 `method` 为 `'selector'` 或以 `'site-rule'` 开头 —— 即正文命中了提取器维护的正文选择器列表（`.rich_media_content`/`.article-content`/`.post-content`/`.entry-content` 等），覆盖像 news.qq.com 这种无语义标签但正文在已知容器里的页面，
   - **且** `extracted.text.length >= minContentLength`（auto = 1500）。
 - `manual` 路径 `requireArticleLike` 为 `false`、`minContentLength` 为 500 —— 维持现状宽松判定。
 - 阈值（1500）与结构选择器（`article, main, [role="main"]`）为初始值，dogfooding 后可调（见 §8 可调项）。
