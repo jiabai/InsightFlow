@@ -7,10 +7,10 @@ Wants=network-online.target
 Type=simple
 User=ubuntu
 Group=ubuntu
-WorkingDirectory=%h/InsightFlow
-EnvironmentFile=%h/InsightFlow/backend.env
-Environment=PYTHONPATH=%h/InsightFlow/src
-ExecStart=%h/InsightFlow/.venv/bin/python -m uvicorn server.main:app --app-dir src --host 127.0.0.1 --port 8080 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --log-level warning --no-access-log
+WorkingDirectory=/home/ubuntu/InsightFlow
+EnvironmentFile=/home/ubuntu/InsightFlow/backend.env
+Environment=PYTHONPATH=/home/ubuntu/InsightFlow/src
+ExecStart=/home/ubuntu/InsightFlow/.venv/bin/python -m uvicorn server.main:app --app-dir src --host 127.0.0.1 --port 8080 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --log-level warning --no-access-log
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
@@ -20,7 +20,7 @@ UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full
-ReadWritePaths=%h/InsightFlow
+ReadWritePaths=/home/ubuntu/InsightFlow
 
 [Install]
 WantedBy=multi-user.target

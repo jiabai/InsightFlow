@@ -6,8 +6,8 @@ def test_systemd_unit_matches_backend_deployment_contract():
 
     assert "User=ubuntu" in unit
     assert "Group=ubuntu" in unit
-    assert "WorkingDirectory=%h/InsightFlow" in unit
-    assert "EnvironmentFile=%h/InsightFlow/backend.env" in unit
+    assert "WorkingDirectory=/home/ubuntu/InsightFlow" in unit
+    assert "EnvironmentFile=/home/ubuntu/InsightFlow/backend.env" in unit
     assert "--host 127.0.0.1" in unit
     assert "--port 8080" in unit
     assert "--workers 1" in unit
@@ -18,7 +18,7 @@ def test_systemd_unit_matches_backend_deployment_contract():
     assert "LimitNOFILE=65535" in unit
     assert "NoNewPrivileges=true" in unit
     assert "ProtectSystem=full" in unit
-    assert "ReadWritePaths=%h/InsightFlow" in unit
+    assert "ReadWritePaths=/home/ubuntu/InsightFlow" in unit
 
 
 def test_nginx_template_supports_https_sse_and_rate_limit():
