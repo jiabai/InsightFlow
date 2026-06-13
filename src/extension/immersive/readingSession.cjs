@@ -1,5 +1,7 @@
-function startReadingSession(siteRules = null) {
-  const MIN_CONTENT_LENGTH = 500;
+function startReadingSession(siteRules = null, options = {}) {
+  const requireArticleLike = Boolean(options && options.requireArticleLike === true);
+  const minContentLength =
+    options && typeof options.minContentLength === 'number' ? options.minContentLength : 500;
   const GENERATE_PORT_NAME = 'insightflow-generate-questions';
   const LEGACY_GENERATE_TYPE = 'INSIGHTFLOW_GENERATE_QUESTIONS';
   const PORT_GENERATE_START_TYPE = 'INSIGHTFLOW_GENERATE_QUESTIONS_START';
@@ -13,10 +15,19 @@ function startReadingSession(siteRules = null) {
     removeExistingSession();
 
     const extracted = extractReadableContent(document);
-    if (extracted.text.length < MIN_CONTENT_LENGTH) {
+    if (extracted.text.length < minContentLength) {
       return {
         ok: false,
         error: messages.pageContentTooShort,
+        reason: 'too-short',
+      };
+    }
+
+    if (requireArticleLike && !isArticleLike()) {
+      return {
+        ok: false,
+        error: 'not-article-like',
+        reason: 'not-article-like',
       };
     }
 
@@ -69,6 +80,14 @@ function startReadingSession(siteRules = null) {
 
     if (best && best.text.length >= 100) return best;
     return buildExtractedContent(body, 'fallback', siteRule);
+  }
+
+  function isArticleLike() {
+    const pageUrl = document.baseURI || document.URL || readingWindow.location?.href || '';
+    const siteRule = getWebsiteConfig(pageUrl, activeSiteRules);
+    const hasContentRule = Boolean(siteRule && siteRule.contentElem);
+    const hasArticleStructure = Boolean(document.querySelector('article, main, [role="main"]'));
+    return hasContentRule || hasArticleStructure;
   }
 
   function extractBySiteRule(doc, siteRule) {
@@ -1543,8 +1562,8 @@ function startReadingSession(siteRules = null) {
       ),
       pageContentTooShort: getI18nMessage(
         'pageContentTooShort',
-        `Page content is shorter than ${MIN_CONTENT_LENGTH} characters`,
-        [String(MIN_CONTENT_LENGTH)],
+        `Page content is shorter than ${minContentLength} characters`,
+        [String(minContentLength)],
       ),
     };
   }
