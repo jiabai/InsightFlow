@@ -10,6 +10,7 @@ export type OptionsState = {
 	wrapInTripleBackticks: boolean // 是否用三重反引号包裹输出
 	showSuccessToast: boolean     // 是否显示操作成功的提示框
 	showConfetti: boolean         // 是否显示庆祝效果
+	autoEnterReadingMode: boolean // 是否在页面加载时自动进入深度阅读模式
 }
 
 /**
@@ -22,6 +23,7 @@ export const defaultOptions: OptionsState = {
 	wrapInTripleBackticks: false,
 	showSuccessToast: false,
 	showConfetti: false,
+	autoEnterReadingMode: false,
 }
 
 /**
