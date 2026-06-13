@@ -54,5 +54,20 @@
   },
   "questionCopyFailed": {
     "message": "コピーに失敗しました"
+  },
+  "optionsTitle": {
+    "message": "InsightFlow 設定"
+  },
+  "autoEnterReadingModeLabel": {
+    "message": "ページ読み込み時に自動で没入型リーディングに入る"
+  },
+  "autoEnterReadingModeHint": {
+    "message": "オンにすると、記事と判定されたページは読み込み完了後に自動で全画面の没入型リーディングを開きます。いつでもオフにでき、オフのときはツールバーのアイコンをクリックして手動で開けます。"
+  },
+  "autoEnterToggleLabel": {
+    "message": "自動で開く（全体）"
+  },
+  "autoEnterToggleTooltip": {
+    "message": "ページ読み込み時に自動で没入型リーディングに入るかを切り替える（全体設定）"
   }
 }

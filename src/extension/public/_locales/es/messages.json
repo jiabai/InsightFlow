@@ -54,5 +54,20 @@
   },
   "questionCopyFailed": {
     "message": "Error al copiar"
+  },
+  "optionsTitle": {
+    "message": "Configuración de InsightFlow"
+  },
+  "autoEnterReadingModeLabel": {
+    "message": "Entrar automáticamente en el modo de lectura profunda al cargar la página"
+  },
+  "autoEnterReadingModeHint": {
+    "message": "Cuando está activado, las páginas detectadas como artículos se abren automáticamente en lectura profunda a pantalla completa al terminar de cargar. Puedes desactivarlo cuando quieras; al estar desactivado, aún puedes hacer clic en el icono de la barra de herramientas para entrar manualmente."
+  },
+  "autoEnterToggleLabel": {
+    "message": "Entrada automática (global)"
+  },
+  "autoEnterToggleTooltip": {
+    "message": "Alternar si se entra automáticamente en lectura profunda al cargar la página (ajuste global)"
   }
 }

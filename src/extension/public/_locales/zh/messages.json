@@ -54,5 +54,20 @@
   },
   "questionCopyFailed": {
     "message": "复制失败"
+  },
+  "optionsTitle": {
+    "message": "InsightFlow 设置"
+  },
+  "autoEnterReadingModeLabel": {
+    "message": "加载页面时自动进入深度阅读模式"
+  },
+  "autoEnterReadingModeHint": {
+    "message": "开启后，被判定为正文文章的页面会在加载完成时自动进入全屏深度阅读。你随时可以关闭；关闭后仍可点击工具栏图标手动进入。"
+  },
+  "autoEnterToggleLabel": {
+    "message": "自动进入（全局）"
+  },
+  "autoEnterToggleTooltip": {
+    "message": "切换是否在加载页面时自动进入深度阅读（全局设置）"
   }
 }

@@ -54,5 +54,20 @@
   },
   "questionCopyFailed": {
     "message": "Copy failed"
+  },
+  "optionsTitle": {
+    "message": "InsightFlow Settings"
+  },
+  "autoEnterReadingModeLabel": {
+    "message": "Automatically enter deep reading mode on page load"
+  },
+  "autoEnterReadingModeHint": {
+    "message": "When on, pages detected as articles automatically open in full-screen deep reading after they finish loading. You can turn it off anytime; when off, you can still click the toolbar icon to enter manually."
+  },
+  "autoEnterToggleLabel": {
+    "message": "Auto-enter (global)"
+  },
+  "autoEnterToggleTooltip": {
+    "message": "Toggle whether to automatically enter deep reading on page load (global setting)"
   }
 }
