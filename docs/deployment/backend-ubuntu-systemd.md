@@ -36,7 +36,7 @@ curl https://pyenv.run | bash
 export PYENV_ROOT=~/.pyenv
 export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
-PYTHON_VERSION="$(pyenv install --list | sed 's/^  //' | grep -E '^3\.12\.[0-9]+$' | tail -1)"
+PYTHON_VERSION="$(pyenv install --list | sed 's/^  //' | grep -E '^3\.14\.[0-9]+$' | tail -1)"
 pyenv install "$PYTHON_VERSION"
 pyenv global "$PYTHON_VERSION"
 curl -LsSf https://astral.sh/uv/install.sh | sh
