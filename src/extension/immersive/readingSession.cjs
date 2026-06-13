@@ -434,6 +434,24 @@ function startReadingSession(siteRules = null, options = {}) {
         font-weight: 700 !important;
         letter-spacing: 0 !important;
       }
+      #insight-flow-header #insight-flow-auto-toggle {
+        margin-left: auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        color: #d6d6d6 !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        cursor: pointer !important;
+        user-select: none !important;
+      }
+      #insight-flow-header #insight-flow-auto-toggle input {
+        width: 16px !important;
+        height: 16px !important;
+        margin: 0 !important;
+        cursor: pointer !important;
+        accent-color: #43bf4f !important;
+      }
       #immersive-container .insight-flow-shell {
         width: min(1700px, calc(100vw - 160px)) !important;
         margin: 40px auto 56px !important;
@@ -967,7 +985,9 @@ function startReadingSession(siteRules = null, options = {}) {
     wordmark.className = 'insight-flow-wordmark';
     wordmark.textContent = 'InsightFlow';
 
-    header.append(mark, wordmark);
+    const autoToggle = createAutoEnterToggle();
+
+    header.append(mark, wordmark, autoToggle);
 
     const shell = document.createElement('div');
     shell.className = 'insight-flow-shell';
@@ -1544,11 +1564,83 @@ function startReadingSession(siteRules = null, options = {}) {
     return icon;
   }
 
+  function createAutoEnterToggle() {
+    const label = document.createElement('label');
+    label.id = 'insight-flow-auto-toggle';
+    label.title = messages.autoEnterToggleTooltip;
+
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = 'insight-flow-auto-toggle-input';
+
+    const text = document.createElement('span');
+    text.className = 'insight-flow-auto-toggle-text';
+    text.textContent = messages.autoEnterToggle;
+
+    label.append(input, text);
+
+    getStoredAutoEnter().then((enabled) => {
+      input.checked = enabled;
+    });
+
+    input.addEventListener('change', () => {
+      setStoredAutoEnter(input.checked);
+    });
+
+    return label;
+  }
+
+  function getStoredAutoEnter() {
+    return new Promise((resolve) => {
+      try {
+        const storage = getSyncStorage();
+        if (!storage) {
+          resolve(false);
+          return;
+        }
+        const maybePromise = storage.get('autoEnterReadingMode', (items) => {
+          resolve(Boolean(items && items.autoEnterReadingMode));
+        });
+        if (maybePromise && typeof maybePromise.then === 'function') {
+          maybePromise
+            .then((items) => resolve(Boolean(items && items.autoEnterReadingMode)))
+            .catch(() => resolve(false));
+        }
+      } catch {
+        resolve(false);
+      }
+    });
+  }
+
+  function setStoredAutoEnter(value) {
+    try {
+      const storage = getSyncStorage();
+      if (!storage) return;
+      storage.set({ autoEnterReadingMode: Boolean(value) });
+    } catch {
+      // Storage 不可用时静默；全局开关仍可从选项页设置。
+    }
+  }
+
+  function getSyncStorage() {
+    const chromeApi =
+      (window.chrome && window.chrome) || (globalThis.chrome && globalThis.chrome) || null;
+    if (chromeApi && chromeApi.storage && chromeApi.storage.sync) {
+      return chromeApi.storage.sync;
+    }
+    return null;
+  }
+
   function createMessages() {
     return {
       immersiveReadingLabel: getI18nMessage('immersiveReadingLabel', 'Immersive reading'),
       generateQuestions: getI18nMessage('generateQuestionsTooltip', 'Generate Questions'),
       exitReadingMode: getI18nMessage('exitReadingModeTooltip', 'Exit Reading Mode'),
+      autoEnterToggle: getI18nMessage('autoEnterToggleLabel', 'Auto-enter (global)'),
+      autoEnterToggleTooltip: getI18nMessage(
+        'autoEnterToggleTooltip',
+        'Toggle auto-entering deep reading on page load (global)',
+      ),
       questions: getI18nMessage('questionsLabel', 'Questions'),
       copyQuestion: getI18nMessage('copyQuestionTooltip', 'Click to copy'),
       questionCopied: getI18nMessage('questionCopied', 'Copied'),
