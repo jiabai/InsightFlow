@@ -10,7 +10,7 @@ Group=ubuntu
 WorkingDirectory=/home/ubuntu/InsightFlow
 EnvironmentFile=/home/ubuntu/InsightFlow/backend.env
 Environment=PYTHONPATH=/home/ubuntu/InsightFlow/src
-ExecStart=/home/ubuntu/InsightFlow/.venv/bin/python -m uvicorn server.main:app --app-dir src --host 127.0.0.1 --port 18080 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --log-level warning --no-access-log
+ExecStart=/home/ubuntu/InsightFlow/.venv/bin/python -m uvicorn server.main:app --app-dir src --host 127.0.0.1 --port 8081 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1 --log-level warning --no-access-log
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30
