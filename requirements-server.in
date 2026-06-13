@@ -3,7 +3,7 @@
 # This is the minimal set the FastAPI service actually imports at runtime.
 # Compile it into a fully-pinned lock with uv (run on / for the deploy target):
 #
-#     uv pip compile --universal --python-version 3.12 \
+#     uv pip compile --universal --python-version 3.14 \
 #         requirements-server.in -o requirements-server.txt
 #
 # Then install the lock with `uv pip sync requirements-server.txt`.
@@ -17,7 +17,7 @@
 fastapi==0.116.1
 uvicorn==0.35.0
 python-multipart==0.0.20        # required by FastAPI for UploadFile / multipart form parsing
-pydantic==2.11.7
+pydantic==2.13.4
 
 # Config
 python-dotenv==1.1.1
