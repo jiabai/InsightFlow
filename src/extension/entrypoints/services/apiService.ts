@@ -4,10 +4,10 @@ import type { UploadResult } from '@/lib/uploadResult';
 import type { ContentHistoryItem, FileStatusResponse, StreamChunk } from '@/lib/apiTypes';
 import { generateUserId, sha256 } from '@/utils/stringUtils';
 
-// 从 src/.env 读取后端 API 地址；未配置时默认连接本地开发服务。
+// 从 src/.env 读取后端 API 地址；未配置时默认连接生产服务 https://8xf.pro:8080。
 const API_DEBUG_PREFIX = '[InsightFlow:api]';
 const REQUEST_ID_HEADER = 'X-InsightFlow-Request-Id';
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://8xf.pro:8080').replace(/\/$/, '');
 apiDebug('api:base-url', { baseUrl: API_BASE_URL });
 
 export interface GenerateAnswerResponse {
