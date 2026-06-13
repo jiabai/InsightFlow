@@ -55,6 +55,12 @@
   "questionCopyFailed": {
     "message": "复制失败"
   },
+  "collapseQuestionsTooltip": {
+    "message": "卷起为圆点"
+  },
+  "expandQuestionsTooltip": {
+    "message": "展开问题"
+  },
   "optionsTitle": {
     "message": "InsightFlow 设置"
   },

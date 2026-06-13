@@ -55,6 +55,12 @@
   "questionCopyFailed": {
     "message": "Copy failed"
   },
+  "collapseQuestionsTooltip": {
+    "message": "Minimize to a dot"
+  },
+  "expandQuestionsTooltip": {
+    "message": "Expand questions"
+  },
   "optionsTitle": {
     "message": "InsightFlow Settings"
   },

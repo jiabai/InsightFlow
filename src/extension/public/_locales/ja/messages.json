@@ -55,6 +55,12 @@
   "questionCopyFailed": {
     "message": "コピーに失敗しました"
   },
+  "collapseQuestionsTooltip": {
+    "message": "ドットに折りたたむ"
+  },
+  "expandQuestionsTooltip": {
+    "message": "質問を展開"
+  },
   "optionsTitle": {
     "message": "InsightFlow 設定"
   },

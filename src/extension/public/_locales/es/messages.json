@@ -55,6 +55,12 @@
   "questionCopyFailed": {
     "message": "Error al copiar"
   },
+  "collapseQuestionsTooltip": {
+    "message": "Minimizar en un punto"
+  },
+  "expandQuestionsTooltip": {
+    "message": "Expandir preguntas"
+  },
   "optionsTitle": {
     "message": "Configuración de InsightFlow"
   },

@@ -10,6 +10,7 @@ function startReadingSession(siteRules = null, options = {}) {
   const readingWindow = window;
   const messages = createMessages();
   const activeSiteRules = normalizeSiteRules(siteRules);
+  let questionsMinimizer = null;
 
   try {
     removeExistingSession();
@@ -793,6 +794,8 @@ function startReadingSession(siteRules = null, options = {}) {
         color: #eeeeee !important;
         box-shadow: 0 18px 38px rgba(0, 0, 0, 0.42) !important;
         cursor: grab !important;
+        transform-origin: top right !important;
+        transition: transform 0.27s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease !important;
       }
       #question-sidebar.is-active {
         display: block !important;
@@ -803,12 +806,115 @@ function startReadingSession(siteRules = null, options = {}) {
         user-select: none !important;
       }
       #question-sidebar .question-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
         margin: 0 0 12px !important;
         font-size: 18px !important;
         font-weight: 700 !important;
         color: #ffffff !important;
         cursor: grab !important;
         user-select: none !important;
+      }
+      #question-sidebar .question-title-text {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+      }
+      #question-sidebar .question-minimize {
+        flex: 0 0 auto !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        box-sizing: border-box !important;
+        width: 28px !important;
+        height: 28px !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        border-radius: 6px !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #eeeeee !important;
+        cursor: pointer !important;
+        transition: background 0.18s ease, border-color 0.18s ease !important;
+      }
+      #question-sidebar .question-minimize:hover {
+        background: rgba(67, 191, 79, 0.16) !important;
+        border-color: rgba(67, 191, 79, 0.6) !important;
+      }
+      #question-sidebar .question-minimize:focus-visible {
+        outline: 2px solid #43bf4f !important;
+        outline-offset: 2px !important;
+      }
+      #question-sidebar .question-minimize-bar {
+        display: block !important;
+        width: 11px !important;
+        height: 2px !important;
+        border-radius: 2px !important;
+        background: currentColor !important;
+      }
+      #question-sidebar.is-min {
+        transform: scale(0.16) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      #question-dot {
+        position: fixed !important;
+        z-index: 7 !important;
+        box-sizing: border-box !important;
+        width: 40px !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 50% !important;
+        border: 1px solid rgba(67, 191, 79, 0.7) !important;
+        background: #0f0f0f !important;
+        color: #eaeaea !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+        cursor: grab !important;
+        user-select: none !important;
+        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4) !important;
+        transform-origin: top right !important;
+        transition: transform 0.27s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, background 0.18s ease !important;
+      }
+      #question-dot:hover {
+        background: rgba(67, 191, 79, 0.18) !important;
+      }
+      #question-dot:focus-visible {
+        outline: 2px solid #43bf4f !important;
+        outline-offset: 2px !important;
+      }
+      #question-dot.is-dragging {
+        cursor: grabbing !important;
+      }
+      #question-dot.is-hidden {
+        transform: scale(0.2) !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      #question-dot .question-dot-face {
+        pointer-events: none !important;
+      }
+      #question-dot .question-dot-badge {
+        position: absolute !important;
+        top: -5px !important;
+        right: -5px !important;
+        box-sizing: border-box !important;
+        min-width: 18px !important;
+        height: 18px !important;
+        padding: 0 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 9px !important;
+        background: #43bf4f !important;
+        color: #0b2e10 !important;
+        font-size: 11px !important;
+        font-weight: 600 !important;
+        line-height: 1 !important;
+        pointer-events: none !important;
       }
       #question-sidebar .question-card {
         position: relative !important;
@@ -1033,12 +1139,19 @@ function startReadingSession(siteRules = null, options = {}) {
     sidebar.setAttribute('aria-label', messages.questions);
     const cleanupSidebarDragging = setupSidebarDragging(sidebar);
 
-    reader.append(actions, content, sidebar);
+    const questionDot = createQuestionDot();
+    questionsMinimizer = createQuestionsMinimizer(sidebar, questionDot);
+
+    reader.append(actions, content, sidebar, questionDot);
     shell.append(reader);
     container.append(header, shell);
 
     const cleanup = () => {
       cleanupSidebarDragging();
+      if (questionsMinimizer) {
+        questionsMinimizer.cleanup();
+        questionsMinimizer = null;
+      }
       style.remove();
       container.remove();
       document.documentElement.style.overflow = previousHtmlOverflow;
@@ -1395,6 +1508,7 @@ function startReadingSession(siteRules = null, options = {}) {
   function renderSidebarLoading(sidebar, message) {
     sidebar.classList.add('is-active');
     sidebar.textContent = '';
+    if (questionsMinimizer) questionsMinimizer.reset();
 
     const status = document.createElement('div');
     status.className = 'insight-flow-loading-status';
@@ -1439,9 +1553,39 @@ function startReadingSession(siteRules = null, options = {}) {
     sidebar.classList.add('is-active');
     sidebar.textContent = '';
 
+    if (questionsMinimizer) questionsMinimizer.reset();
+
+    const hasQuestions = questions.length > 0;
+
     const title = document.createElement('div');
     title.className = 'question-title';
-    title.textContent = questions.length ? messages.questions : messages.noQuestionsGenerated;
+
+    const titleText = document.createElement('span');
+    titleText.className = 'question-title-text';
+    titleText.textContent = hasQuestions ? messages.questions : messages.noQuestionsGenerated;
+    title.append(titleText);
+
+    // 「卷起为圆点」按钮：button 已被拖拽逻辑排除，标题栏其余区域仍是拖拽手柄。
+    if (hasQuestions && questionsMinimizer) {
+      const minimizeButton = document.createElement('button');
+      minimizeButton.type = 'button';
+      minimizeButton.className = 'question-minimize';
+      minimizeButton.title = messages.collapseQuestions;
+      minimizeButton.setAttribute('aria-label', messages.collapseQuestions);
+
+      const bar = document.createElement('span');
+      bar.className = 'question-minimize-bar';
+      bar.setAttribute('aria-hidden', 'true');
+      minimizeButton.append(bar);
+
+      minimizeButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        questionsMinimizer.minimize(questions.length);
+      });
+      title.append(minimizeButton);
+    }
+
     sidebar.append(title);
 
     for (const item of questions) {
@@ -1451,6 +1595,164 @@ function startReadingSession(siteRules = null, options = {}) {
       setupQuestionCardCopy(card, item);
       sidebar.append(card);
     }
+  }
+
+  function createQuestionDot() {
+    const dot = document.createElement('div');
+    dot.id = 'question-dot';
+    dot.classList.add('is-hidden');
+    dot.setAttribute('role', 'button');
+    dot.setAttribute('tabindex', '0');
+    dot.setAttribute('aria-label', messages.expandQuestions);
+    dot.title = messages.expandQuestions;
+
+    const face = document.createElement('span');
+    face.className = 'question-dot-face';
+    face.setAttribute('aria-hidden', 'true');
+    face.textContent = '?';
+
+    const badge = document.createElement('span');
+    badge.className = 'question-dot-badge';
+
+    dot.append(face, badge);
+    return dot;
+  }
+
+  function createQuestionsMinimizer(sidebar, dot) {
+    const DOT_SIZE = 40;
+    const badge = dot.querySelector('.question-dot-badge');
+    let minimized = false;
+
+    // 卷起：把圆点对齐到面板的右上角，再把面板缩成圆点。
+    const positionDotAtPanel = () => {
+      const rect = sidebar.getBoundingClientRect();
+      dot.style.top = `${Math.max(8, rect.top)}px`;
+      dot.style.left = `${Math.max(8, rect.right - DOT_SIZE)}px`;
+      dot.style.right = 'auto';
+    };
+
+    // 展开：把面板的右边缘对齐到圆点当前位置（圆点可被拖到任意处），并夹在视口内。
+    const positionPanelAtDot = () => {
+      const rect = dot.getBoundingClientRect();
+      const margin = 8;
+      const width = sidebar.offsetWidth || 320;
+      const height = sidebar.offsetHeight || 240;
+      const maxRightOffset = Math.max(margin, window.innerWidth - width - margin);
+      const maxTop = Math.max(margin, window.innerHeight - height - margin);
+      const rightOffset = Math.min(Math.max(window.innerWidth - rect.right, margin), maxRightOffset);
+      const top = Math.min(Math.max(rect.top, margin), maxTop);
+      sidebar.style.right = `${rightOffset}px`;
+      sidebar.style.left = 'auto';
+      sidebar.style.top = `${top}px`;
+    };
+
+    const minimize = (count) => {
+      if (minimized) return;
+      minimized = true;
+      const n = Number(count) || 0;
+      badge.textContent = n > 99 ? '99+' : String(n);
+      badge.style.display = n > 0 ? 'flex' : 'none';
+      positionDotAtPanel();
+      sidebar.classList.add('is-min');
+      dot.classList.remove('is-hidden');
+    };
+
+    const expand = () => {
+      if (!minimized) return;
+      minimized = false;
+      positionPanelAtDot();
+      sidebar.classList.remove('is-min');
+      dot.classList.add('is-hidden');
+    };
+
+    const reset = () => {
+      minimized = false;
+      sidebar.classList.remove('is-min');
+      dot.classList.add('is-hidden');
+    };
+
+    const cleanupDotDragging = setupDotDragging(dot, expand);
+
+    return { minimize, expand, reset, cleanup: cleanupDotDragging };
+  }
+
+  // 圆点可拖动 + 点击展开：移动超过阈值算拖动，否则松手算点击（展开）。
+  function setupDotDragging(dot, onTap) {
+    const state = { down: false, dragging: false, pointerId: null, startX: 0, startY: 0, offsetX: 0, offsetY: 0 };
+    const THRESHOLD = 5;
+
+    const detach = () => {
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointercancel', onPointerUp, true);
+    };
+
+    const onPointerMove = (event) => {
+      if (!state.down || event.pointerId !== state.pointerId) return;
+      const dx = event.clientX - state.startX;
+      const dy = event.clientY - state.startY;
+      if (!state.dragging && Math.hypot(dx, dy) < THRESHOLD) return;
+      state.dragging = true;
+      dot.classList.add('is-dragging');
+      const next = clampSidebarPosition(dot, event.clientX - state.offsetX, event.clientY - state.offsetY);
+      dot.style.left = `${next.left}px`;
+      dot.style.top = `${next.top}px`;
+      dot.style.right = 'auto';
+      event.preventDefault();
+    };
+
+    const onPointerUp = (event) => {
+      if (event.pointerId !== state.pointerId) return;
+      const wasDragging = state.dragging;
+      state.down = false;
+      state.dragging = false;
+      state.pointerId = null;
+      dot.classList.remove('is-dragging');
+      try {
+        if (typeof dot.releasePointerCapture === 'function') dot.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture can already be released by the browser.
+      }
+      detach();
+      if (!wasDragging) onTap();
+    };
+
+    const onPointerDown = (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (dot.classList.contains('is-hidden')) return;
+      const rect = dot.getBoundingClientRect();
+      state.down = true;
+      state.dragging = false;
+      state.pointerId = event.pointerId;
+      state.startX = event.clientX;
+      state.startY = event.clientY;
+      state.offsetX = event.clientX - rect.left;
+      state.offsetY = event.clientY - rect.top;
+      try {
+        if (typeof dot.setPointerCapture === 'function') dot.setPointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture is an enhancement; document listeners keep dragging working.
+      }
+      document.addEventListener('pointermove', onPointerMove, true);
+      document.addEventListener('pointerup', onPointerUp, true);
+      document.addEventListener('pointercancel', onPointerUp, true);
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+        event.preventDefault();
+        onTap();
+      }
+    };
+
+    dot.addEventListener('pointerdown', onPointerDown);
+    dot.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      detach();
+      dot.removeEventListener('pointerdown', onPointerDown);
+      dot.removeEventListener('keydown', onKeyDown);
+    };
   }
 
   function setupQuestionCardCopy(card, item) {
@@ -1647,6 +1949,8 @@ function startReadingSession(siteRules = null, options = {}) {
         'Toggle auto-entering deep reading on page load (global)',
       ),
       questions: getI18nMessage('questionsLabel', 'Questions'),
+      collapseQuestions: getI18nMessage('collapseQuestionsTooltip', 'Minimize to a dot'),
+      expandQuestions: getI18nMessage('expandQuestionsTooltip', 'Expand questions'),
       copyQuestion: getI18nMessage('copyQuestionTooltip', 'Click to copy'),
       questionCopied: getI18nMessage('questionCopied', 'Copied'),
       questionCopyFailed: getI18nMessage('questionCopyFailed', 'Copy failed'),
