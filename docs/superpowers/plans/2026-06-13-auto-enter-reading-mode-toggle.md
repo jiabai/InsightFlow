@@ -29,7 +29,7 @@
 | `src/extension/entrypoints/options/main.ts` | 选项页 Vue 挂载 | Create |
 | `src/extension/entrypoints/options/App.vue` | 选项页 UI：主开关 | Create |
 
-**硬约束（勿违反）：** 不要给 `entrypoints/popup/` 创建 `index.html`（会注册 popup 并抑制 `action.onClicked`）；不要给 `wxt.config.ts` 的 `action` 加 `default_popup`。
+**硬约束（勿违反）：** 不要移除 `entrypoints/popup/index.html` 里的 `<meta name="manifest.exclude" ...>`（移除会注册 popup 并抑制 `action.onClicked`）；不要给 `wxt.config.ts` 的 `action` 加 `default_popup`。
 
 ---
 

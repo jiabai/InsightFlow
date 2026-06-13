@@ -18,9 +18,9 @@
   `browser.scripting.executeScript({ func: startReadingSession, args: [SITE_RULES] })`，把深度阅读注入当前页。
   目前进入方式 **100% 手动**：没有内容脚本，也没有任何「加载时自动进入」。
 - **无 popup（关键约束）**: 构建产物 manifest 的 `action` 只有 `default_icon`、**没有 `default_popup`**。
-  原因是 `entrypoints/popup/` 目录**缺少 `index.html`**（只剩孤立的 `.vue/.ts`），WXT 因此未注册 popup —— 这正是 `onClicked` 能触发的前提。
+  原因是 `entrypoints/popup/index.html` 带有 `<meta name="manifest.exclude" content='["chrome","firefox","edge","safari"]'>`，WXT 因此在这些浏览器的构建里排除 popup 入口、不注册 `default_popup` —— 这正是 `onClicked` 能触发的前提。（popup 目录里的 `.vue/.ts` 是未启用的遗留代码。）
   - **硬约束**：
-    - 不得给 `entrypoints/popup/` 补 `index.html`。
+    - 不得移除 `popup/index.html` 里的 `manifest.exclude` meta，也不得给 `action` 添加 `default_popup`。
     - [`wxt.config.ts`](../../../src/extension/wxt.config.ts) 的 `action` 保持只有 `default_icon`。
     - 否则会重新注册 popup，并按 MV3 行为抑制 `onClicked`，打破点击进入。
 - **设置存储**: [`lib/storage.ts`](../../../src/extension/lib/storage.ts) 已有 `OptionsState` + `getOptions/saveOptions`（基于 `browser.storage.sync`）。
