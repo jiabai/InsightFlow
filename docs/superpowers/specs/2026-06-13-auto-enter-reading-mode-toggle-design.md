@@ -173,3 +173,4 @@
 **可调项（实现后可按手感微调）**
 - 自动门槛正文阈值（初始 1500 字）。
 - 「更像正文」结构选择器（初始 `article, main, [role="main"]` + SITE_RULES `contentElem`）。
+- **「自动进入」URL 黑名单** `AUTO_ENTER_URL_BLOCKLIST`（[`lib/autoEnter.ts`](../../../src/extension/lib/autoEnter.ts)）：搜索 / 代码托管等导航类页面常带 `<main>` 与大量文本，会骗过正文启发式（§4.3）；黑名单命中则直接跳过自动进入。初始项：搜索引擎结果页 `bing.com/`、`www.baidu.com/`、`google.*/search`、`duckduckgo.com/`、`sogou.com/`、`www.so.com/`（用 `www.` / `*/search` 精确命中搜索页，放行 baike.baidu.com / scholar.google / maps 等内容页，搜狗指向的 mp.weixin.qq.com 文章亦不受影响），以及代码托管 `github.com/`（issues、discussions 仍可手动进入）。**仅作用于自动路径，手动点击工具栏图标不受影响**（与 §1 原则一致）。在 [`background.ts`](../../../src/extension/entrypoints/background.ts) 的自动闸里作为廉价同步检查，紧跟 `isReadableUrl` 之后。

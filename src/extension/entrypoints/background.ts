@@ -3,6 +3,7 @@ import { SITE_RULES, isReadableUrl } from '@/extractor/siteRules.cjs';
 import { startReadingSession, type ReadingSessionResult } from '@/immersive/readingSession.cjs';
 import {
   AUTO_ENTER_INJECT_OPTS,
+  isAutoEnterBlockedUrl,
   isEnterCandidateEvent,
   isNavigationResetEvent,
 } from '@/lib/autoEnter';
@@ -145,6 +146,12 @@ function setupAutoEnterReadingMode(): void {
 
     const url = tab.url;
     if (!isInjectableUrl(url) || !isReadableUrl(url || '', SITE_RULES)) return;
+
+    // 搜索 / 代码托管等导航类页面：即使正文启发式通过也不自动进入（手动点击仍可）。
+    if (isAutoEnterBlockedUrl(url)) {
+      debugLog('auto-enter:blocked-url', { tabId, urlOrigin: getUrlOrigin(url) });
+      return;
+    }
 
     const { autoEnterReadingMode } = await getOptions();
     if (!autoEnterReadingMode) return;
