@@ -1,6 +1,12 @@
 import { generateQuestion } from '@/entrypoints/services/apiService';
 import { SITE_RULES, isReadableUrl } from '@/extractor/siteRules.cjs';
 import { startReadingSession, type ReadingSessionResult } from '@/immersive/readingSession.cjs';
+import {
+  AUTO_ENTER_INJECT_OPTS,
+  isEnterCandidateEvent,
+  isNavigationResetEvent,
+} from '@/lib/autoEnter';
+import { getOptions } from '@/lib/storage';
 import type { QuestionItem } from '@/lib/questionTypes';
 import { browser } from 'wxt/browser';
 import { defineBackground } from 'wxt/utils/define-background';
@@ -81,33 +87,79 @@ export default defineBackground(() => {
       return;
     }
 
-    try {
-      const [injection] = await browser.scripting.executeScript({
-        target: { tabId },
-        func: startReadingSession,
-        args: [SITE_RULES],
-      });
-      const result = injection?.result as ReadingSessionResult | undefined;
-
-      if (!result?.ok) {
-        throw new Error(result?.error || getMessage('extractContentFailed', 'Could not extract readable content'));
-      }
-
-      debugLog('reading-session:injected', {
-        tabId,
-        contentLength: result.length,
-        method: result.method,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      debugError('reading-session:inject-error', error, { tabId });
-      await notifyFailure(`${getMessage('enterReadingSessionFailed', 'Unable to enter Reading Session')}: ${message}`);
-    }
+    await injectReadingSession(tabId, 'manual');
   });
 
+  setupAutoEnterReadingMode();
   setupGenerateQuestionsPort();
   setupLegacyGenerateQuestionsMessage();
 });
+
+type InjectReadingSessionMode = 'manual' | 'auto';
+
+async function injectReadingSession(tabId: number, mode: InjectReadingSessionMode): Promise<void> {
+  const options = mode === 'auto' ? AUTO_ENTER_INJECT_OPTS : {};
+
+  try {
+    const [injection] = await browser.scripting.executeScript({
+      target: { tabId },
+      func: startReadingSession,
+      args: [SITE_RULES, options],
+    });
+    const result = injection?.result as ReadingSessionResult | undefined;
+
+    if (!result?.ok) {
+      if (mode === 'manual') {
+        throw new Error(result?.error || getMessage('extractContentFailed', 'Could not extract readable content'));
+      }
+      debugLog('reading-session:auto-skip', { tabId, reason: result?.reason ?? result?.error });
+      return;
+    }
+
+    debugLog('reading-session:injected', {
+      tabId,
+      mode,
+      contentLength: result.length,
+      method: result.method,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    debugError('reading-session:inject-error', error, { tabId, mode });
+    if (mode === 'manual') {
+      await notifyFailure(`${getMessage('enterReadingSessionFailed', 'Unable to enter Reading Session')}: ${message}`);
+    }
+  }
+}
+
+function setupAutoEnterReadingMode(): void {
+  const enteredThisNav = new Map<number, boolean>();
+
+  browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    // 新导航开始（整页加载或 SPA 改 URL）→ 允许本次导航再自动进入一次。
+    if (isNavigationResetEvent(changeInfo)) {
+      enteredThisNav.delete(tabId);
+    }
+
+    if (!isEnterCandidateEvent(changeInfo)) return;
+    if (enteredThisNav.get(tabId)) return;
+
+    const url = tab.url;
+    if (!isInjectableUrl(url) || !isReadableUrl(url || '', SITE_RULES)) return;
+
+    const { autoEnterReadingMode } = await getOptions();
+    if (!autoEnterReadingMode) return;
+
+    // await 之后再核对一次，防止同一次加载的多个 complete 事件重复注入。
+    if (enteredThisNav.get(tabId)) return;
+    enteredThisNav.set(tabId, true);
+
+    await injectReadingSession(tabId, 'auto');
+  });
+
+  browser.tabs.onRemoved.addListener((tabId) => {
+    enteredThisNav.delete(tabId);
+  });
+}
 
 function isInjectableUrl(url?: string): boolean {
   return Boolean(url && /^https?:\/\//i.test(url));
